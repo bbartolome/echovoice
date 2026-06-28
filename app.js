@@ -575,10 +575,21 @@ function renderRail() {
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
 function scaleApp() {
-  const s = Math.min(window.innerWidth / 1180, window.innerHeight / 820);
-  const x = (window.innerWidth  - 1180 * s) / 2;
-  const y = (window.innerHeight - 820  * s) / 2;
-  el('app').style.transform = `translate(${x}px,${y}px) scale(${s})`;
+  const W = window.innerWidth, H = window.innerHeight;
+  const portrait = H > W;
+  let transform;
+  if (portrait) {
+    // Rotate 90° so the landscape canvas fills a portrait screen.
+    // Double-translate trick: move center to origin → rotate → scale → move to viewport center.
+    const s = Math.min(W / 820, H / 1180);
+    transform = `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(-590px,-410px)`;
+  } else {
+    const s = Math.min(W / 1180, H / 820);
+    const x = (W - 1180 * s) / 2;
+    const y = (H - 820  * s) / 2;
+    transform = `translate(${x}px,${y}px) scale(${s})`;
+  }
+  el('app').style.transform = transform;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
@@ -633,4 +644,5 @@ function init() {
 
 // Scale before first paint, then keep in sync
 window.addEventListener('resize', scaleApp);
+window.addEventListener('orientationchange', () => setTimeout(scaleApp, 100));
 document.addEventListener('DOMContentLoaded', () => { scaleApp(); init(); });
