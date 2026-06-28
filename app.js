@@ -313,6 +313,7 @@ function render() {
   const app = el('app');
   app.dataset.theme   = S.theme;
   app.dataset.density = S.density;
+  document.body.dataset.theme = S.theme;
   renderMsgBar();
   renderPredRow();
   renderGridArea();

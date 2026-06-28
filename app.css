@@ -5,8 +5,10 @@ button { font: inherit; border: none; cursor: pointer; touch-action: manipulatio
 html, body {
   width: 100%; height: 100%;
   overflow: hidden;
-  background: #0a0c0e;
+  background: #FFFFFF;
+  transition: background 0.2s ease;
 }
+body[data-theme="dark"] { background: #000000; }
 
 /* ── Scaling container ──────────────────────────────────────────────────── */
 #scaler {
