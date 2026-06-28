@@ -108,6 +108,19 @@ interface NavCard {
       grid-template-columns: repeat(2, 1fr);
       gap: 16px;
     }
+    @media (max-width: 700px) {
+      .home-body { padding: 20px 16px 48px; }
+      .home-h1 { font-size: 32px; }
+      .home-sub { font-size: 17px; }
+      .cards-grid { grid-template-columns: 1fr; gap: 12px; }
+      .nav-card { min-height: 88px; padding: 14px 16px; gap: 14px; }
+      .card-icon { width: 52px; height: 52px; border-radius: 13px; }
+      .card-glyph { font-size: 26px; }
+      .card-title { font-size: 20px; }
+      .card-desc { font-size: 16px; }
+      .card-chev { font-size: 28px; }
+      .pin-section { margin-top: 20px; padding: 16px; }
+    }
     .nav-card {
       display: flex;
       align-items: center;

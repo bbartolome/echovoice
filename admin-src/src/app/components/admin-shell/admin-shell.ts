@@ -40,16 +40,23 @@ import { PersistenceService } from '../../services/persistence.service';
     }
     .topbar {
       flex-shrink: 0;
-      height: 68px;
+      min-height: 68px;
       background: var(--surface);
       border-bottom: 2px solid var(--hair);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 32px;
+      gap: 12px;
+      padding: 12px 32px;
       position: sticky;
       top: 0;
       z-index: 100;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 500px) {
+      .topbar { padding: 10px 16px; }
+      .topbar-title { font-size: 17px; }
+      .back-btn, .lock-btn { font-size: 14px; padding: 8px 12px; }
     }
     .topbar-left {
       display: flex;
