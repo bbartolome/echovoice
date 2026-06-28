@@ -102,6 +102,22 @@ function readAdminState() {
       quickPhrases: Array.isArray(phraseObjs)
         ? phraseObjs.slice(0, 4).map(p => p.text || p).filter(Boolean)
         : ADMIN_DEFAULTS.quickPhrases,
+      allPhraseTexts: Array.isArray(phraseObjs)
+        ? phraseObjs.map(p => p.text || p).filter(Boolean)
+        : ADMIN_DEFAULTS.quickPhrases,
+      personalWords: (function () {
+        const ws = [];
+        const add = arr => (arr || []).forEach(item => {
+          const s = (typeof item === 'string' ? item : (item && item.name)) || '';
+          s.trim().split(/\s+/).forEach(t => { if (t) ws.push(t); });
+        });
+        add(parsed.people);
+        add(parsed.caregivers);
+        add(parsed.pets);
+        add(parsed.places);
+        add(parsed.careTerms);
+        return [...new Set(ws)];
+      }()),
     };
   } catch {
     return { ...ADMIN_DEFAULTS };
@@ -185,6 +201,10 @@ function applyAdminSettings() {
   S.showYesNo    = a.showYesNo;
   S.showNeedsMenu     = a.showNeedsMenu;
   S.quickPhrases = a.quickPhrases;
+  if (window.Pred) Pred.setAdminData({
+    personalWords: a.personalWords || [],
+    phrases:       a.allPhraseTexts || a.quickPhrases,
+  });
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -247,6 +267,7 @@ let _ttsVoiceCacheName = null;
 
 function speak(text) {
   if (!text || !text.trim()) return;
+  if (window.Pred) Pred.commitMessage(text.trim());
   window.speechSynthesis.cancel();
   const utt = new SpeechSynthesisUtterance(text.trim());
 
@@ -264,7 +285,13 @@ function speak(text) {
 // ── Message mutations ────────────────────────────────────────────────────
 function appendChar(char) {
   if (char === ' ') {
-    if (!S.message.endsWith(' ')) S.message += ' ';
+    if (!S.message.endsWith(' ')) {
+      if (window.Pred) {
+        const parts = S.message.trim().split(/\s+/).filter(Boolean);
+        if (parts.length) Pred.commitWord(parts[parts.length - 2] || '', parts[parts.length - 1]);
+      }
+      S.message += ' ';
+    }
   } else {
     S.message += char;
   }
@@ -275,8 +302,13 @@ function appendChar(char) {
 function appendWord(word) {
   const lastSpace = S.message.lastIndexOf(' ');
   if (lastSpace >= 0) {
+    if (window.Pred) {
+      const prevParts = S.message.slice(0, lastSpace).trimEnd().split(/\s+/).filter(Boolean);
+      Pred.commitWord(prevParts[prevParts.length - 1] || '', word);
+    }
     S.message = S.message.slice(0, lastSpace + 1) + word + ' ';
   } else {
+    if (window.Pred) Pred.commitWord('', word);
     S.message = word + ' ';
   }
   S.restoredDraft = false;
@@ -284,6 +316,7 @@ function appendWord(word) {
 }
 
 function appendPhrase(phrase) {
+  if (window.Pred) Pred.commitPhrase(phrase);
   S.message = phrase + ' ';
   S.restoredDraft = false;
   afterMessageChange();
@@ -305,7 +338,7 @@ function clearAll() {
 
 function afterMessageChange() {
   localStorage.setItem('ev-draft', S.message);
-  S.predictions = computePredictions(S.message);
+  S.predictions = window.Pred ? Pred.compute(S.message) : computePredictions(S.message);
   render();
 }
 
@@ -715,6 +748,7 @@ function scaleApp() {
 
 // ── Init ──────────────────────────────────────────────────────────────────
 function init() {
+  if (window.Pred) Pred.init();
   applyAdminSettings();
 
   // Restore draft
@@ -723,7 +757,7 @@ function init() {
     S.message = saved;
     S.restoredDraft = true;
   }
-  S.predictions = computePredictions(S.message);
+  S.predictions = window.Pred ? Pred.compute(S.message) : computePredictions(S.message);
 
   render();
 

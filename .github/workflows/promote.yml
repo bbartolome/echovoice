@@ -29,9 +29,11 @@ jobs:
 
       - name: Copy beta files to root
         run: |
-          cp beta/index.html index.html
-          cp beta/app.css    app.css
-          cp beta/app.js     app.js
+          cp beta/index.html           index.html
+          cp beta/app.css              app.css
+          cp beta/app.js               app.js
+          cp beta/predictionary.min.js predictionary.min.js
+          cp beta/prediction.js        prediction.js
 
       - name: Apply new cache-bust version to root index.html
         run: |
@@ -42,7 +44,7 @@ jobs:
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add index.html app.css app.js
+          git add index.html app.css app.js predictionary.min.js prediction.js
           git diff --cached --quiet && echo "No changes to promote." && exit 0
           git commit -m "chore: promote beta → production (v${{ steps.version.outputs.next }}) — ${{ inputs.reason }}"
           git push
