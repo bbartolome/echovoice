@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>EchoVoice</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="scaler">
+    <div id="app" data-theme="light" data-density="default">
+
+      <!-- Left column: message, predictions, grid / needs panel -->
+      <div id="left">
+        <div id="msg-bar"></div>
+        <div id="pred-row"></div>
+        <div id="grid-area">
+          <div id="spelling-grid"></div>
+          <div id="needs-panel"></div>
+        </div>
+      </div>
+
+      <!-- Right rail: Yes · No · quick phrases · needs entry -->
+      <div id="rail">
+        <button id="yes-btn" class="yn yes">
+          <span class="yn-glyph">✓</span>
+          <span>Yes</span>
+        </button>
+        <button id="no-btn" class="yn no">
+          <span class="yn-glyph">✗</span>
+          <span>No</span>
+        </button>
+        <div id="quick-group"></div>
+        <button id="needs-btn">
+          <span class="needs-btn-label">What do you need?</span>
+          <span class="needs-btn-glyph">▶</span>
+        </button>
+      </div>
+
+      <!-- Scan switch — visible only in scan mode -->
+      <button id="switch-btn">SWITCH</button>
+
+    </div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
