@@ -288,7 +288,7 @@ export class AdminHomeComponent {
       title: 'Quick phrases & favourites',
       desc: 'Add, edit and reorder the phrases he reaches for most.',
       route: '/phrases',
-      live: false,
+      live: true,
     },
     {
       id: 'needs',
@@ -296,7 +296,7 @@ export class AdminHomeComponent {
       title: 'Needs menu',
       desc: 'Edit the guided "What do you need?" menu and its options.',
       route: '/needs',
-      live: false,
+      live: true,
     },
     {
       id: 'input',

@@ -41,4 +41,19 @@ describe('migrateState', () => {
   it('default state has quickPhrases', () => {
     expect(DEFAULT_STATE.quickPhrases.length).toBeGreaterThan(0);
   });
+
+  it('default needsRootQuestion is "What do you need?"', () => {
+    expect(DEFAULT_STATE.needsRootQuestion).toBe('What do you need?');
+  });
+
+  it('supplies needsRootQuestion default for legacy state that lacks it', () => {
+    const raw = { schemaVersion: 1, settings: {}, needsTree: [] };
+    const s = migrateState(raw);
+    expect(s.needsRootQuestion).toBe('What do you need?');
+  });
+
+  it('preserves a custom needsRootQuestion from raw state', () => {
+    const raw = { schemaVersion: 1, settings: {}, needsRootQuestion: 'How can I help?' };
+    expect(migrateState(raw).needsRootQuestion).toBe('How can I help?');
+  });
 });

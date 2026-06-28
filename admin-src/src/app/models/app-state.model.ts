@@ -61,6 +61,7 @@ export interface AppState {
   contextNotes: string;
   quickPhrases: QuickPhrase[];
   needsTree: NeedsNode[];
+  needsRootQuestion: string;
   deviceHistory: DeviceHistory[];
 }
 
@@ -144,6 +145,7 @@ export const DEFAULT_STATE: AppState = {
   contextNotes: '',
   quickPhrases: [...DEFAULT_QUICK_PHRASES],
   needsTree: DEFAULT_NEEDS_TREE,
+  needsRootQuestion: 'What do you need?',
   deviceHistory: [],
 };
 

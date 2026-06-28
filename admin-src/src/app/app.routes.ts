@@ -51,16 +51,14 @@ export const routes: Routes = [
       {
         path: 'phrases',
         loadComponent: () =>
-          import('./components/coming-soon/coming-soon').then(m => m.ComingSoonComponent),
+          import('./components/admin-phrases/admin-phrases').then(m => m.AdminPhrasesComponent),
         canActivate: [pinGuard],
-        data: { title: 'Quick phrases & favourites' },
       },
       {
         path: 'needs',
         loadComponent: () =>
-          import('./components/coming-soon/coming-soon').then(m => m.ComingSoonComponent),
+          import('./components/admin-needs/admin-needs').then(m => m.AdminNeedsComponent),
         canActivate: [pinGuard],
-        data: { title: 'Needs menu editor' },
       },
       {
         path: 'llm',
