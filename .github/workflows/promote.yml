@@ -1,0 +1,48 @@
+name: Promote beta to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for promotion (shown in commit message)'
+        required: false
+        default: 'manual promotion'
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Increment cache-bust version
+        id: version
+        run: |
+          # Extract current ?v=N from root index.html
+          CURRENT=$(grep -oP '(?<=\?v=)\d+' index.html | head -1)
+          NEXT=$((CURRENT + 1))
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "next=$NEXT"       >> $GITHUB_OUTPUT
+
+      - name: Copy beta files to root
+        run: |
+          cp beta/index.html index.html
+          cp beta/app.css    app.css
+          cp beta/app.js     app.js
+
+      - name: Apply new cache-bust version to root index.html
+        run: |
+          NEXT=${{ steps.version.outputs.next }}
+          sed -i "s/?v=[0-9]*/?v=${NEXT}/g" index.html
+
+      - name: Commit and push
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add index.html app.css app.js
+          git diff --cached --quiet && echo "No changes to promote." && exit 0
+          git commit -m "chore: promote beta → production (v${{ steps.version.outputs.next }}) — ${{ inputs.reason }}"
+          git push
