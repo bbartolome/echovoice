@@ -84,8 +84,9 @@ body[data-theme="dark"] { background: #000000; }
   --dash:      #39424C;
 }
 
-/* ── App frame (820px tall canvas; JS sets width = viewport/scale so it fills
-   the full screen in landscape, and rotates for portrait) ───────────────── */
+/* ── App frame — 1180×820 design. scaleApp() scales it to fit, then expands the
+   canvas in whichever dimension has slack so it fills the viewport edge to
+   edge (no letterboxing). Portrait rotates the whole thing 90°. ──────────── */
 #app {
   width: 1180px; height: 820px;
   background: var(--app-bg);

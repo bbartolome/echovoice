@@ -575,22 +575,27 @@ function renderRail() {
 }
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
+// Scale the 1180×820 design to fit (never overflowing), then EXPAND the canvas
+// in whichever dimension has leftover space so it fills the viewport edge to
+// edge. The flex layout absorbs the extra: #left widens when there's horizontal
+// slack; the grid / quick-phrases grow when there's vertical slack.
 function scaleApp() {
   const app = el('app');
   const W = window.innerWidth, H = window.innerHeight;
   if (H > W) {
-    // Portrait phone: fix canvas to 1180×820 and rotate it to fill the screen.
-    // Double-translate trick: move center to origin → rotate → scale → move to viewport center.
-    app.style.width = '1180px';
-    app.style.height = '820px';
-    const s = Math.min(W / 820, H / 1180);
-    app.style.transform = `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(-590px,-410px)`;
+    // Portrait phone: rotate the canvas 90° so its long edge runs down-screen.
+    // Double-translate trick: center to origin → rotate → scale → viewport center.
+    const s = Math.min(H / 1180, W / 820);
+    const cw = H / s, ch = W / s;          // canvas grows past 1180×820 to fill
+    app.style.width = `${cw}px`;
+    app.style.height = `${ch}px`;
+    app.style.transform =
+      `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(${-cw/2}px,${-ch/2}px)`;
   } else {
-    // Landscape: scale to fill the full viewport height, then widen the canvas
-    // so it fills the full viewport width — #left expands to use all the space.
-    const s = H / 820;
-    app.style.height = '820px';
-    app.style.width = `${Math.round(W / s)}px`;
+    // Landscape: scale from the top-left corner, expand canvas to W×H / s.
+    const s = Math.min(W / 1180, H / 820);
+    app.style.width = `${W / s}px`;        // ≥ 1180 → #left expands
+    app.style.height = `${H / s}px`;       // ≥ 820  → grid grows taller
     app.style.transform = `scale(${s})`;
   }
 }
