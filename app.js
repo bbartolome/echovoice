@@ -575,15 +575,8 @@ function renderRail() {
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
 function scaleApp() {
-  const W = 1180, H = 820;
-  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
-  const app = el('app');
-  app.style.transform  = `scale(${s})`;
-  // Center the scaled frame
-  el('scaler').style.alignItems      = 'flex-start';
-  el('scaler').style.justifyContent  = 'flex-start';
-  app.style.marginLeft = `${(window.innerWidth  - W * s) / 2}px`;
-  app.style.marginTop  = `${(window.innerHeight - H * s) / 2}px`;
+  const s = Math.min(window.innerWidth / 1180, window.innerHeight / 820);
+  el('app').style.transform = `scale(${s})`;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
@@ -634,8 +627,8 @@ function init() {
     }
   });
 
-  window.addEventListener('resize', scaleApp);
-  scaleApp();
 }
 
-document.addEventListener('DOMContentLoaded', init);
+// Scale before first paint, then keep in sync
+window.addEventListener('resize', scaleApp);
+document.addEventListener('DOMContentLoaded', () => { scaleApp(); init(); });

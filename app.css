@@ -12,6 +12,7 @@ html, body {
 #scaler {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
 }
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
@@ -89,8 +90,9 @@ html, body {
   display: flex; gap: 20px; padding: 20px;
   font-family: 'Atkinson Hyperlegible', sans-serif;
   position: relative; overflow: hidden;
-  transform-origin: top left;
-  touch-action: none; /* block pan/zoom on the whole canvas */
+  flex-shrink: 0;          /* prevent flex from squishing the fixed-size frame */
+  transform-origin: center; /* scale from the center so flex centering stays correct */
+  touch-action: none;       /* block pan/zoom on the whole canvas */
   -webkit-user-select: none; user-select: none;
 }
 
