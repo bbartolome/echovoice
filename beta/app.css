@@ -84,14 +84,14 @@ body[data-theme="dark"] { background: #000000; }
   --dash:      #39424C;
 }
 
-/* ── App frame (fluid — fills viewport in landscape; JS applies fixed size +
-   rotation in portrait) ───────────────────────────────────────────────────── */
+/* ── App frame (820px tall canvas; JS sets width = viewport/scale so it fills
+   the full screen in landscape, and rotates for portrait) ───────────────── */
 #app {
-  width: 100%; height: 100%;
+  width: 1180px; height: 820px;
   background: var(--app-bg);
   display: flex; gap: 20px; padding: 20px;
   font-family: 'Atkinson Hyperlegible', sans-serif;
-  position: relative; overflow: hidden;
+  position: absolute; top: 0; left: 0; overflow: hidden;
   transform-origin: top left;
   touch-action: none;
   -webkit-user-select: none; user-select: none;

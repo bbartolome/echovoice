@@ -583,19 +583,15 @@ function scaleApp() {
     // Double-translate trick: move center to origin → rotate → scale → move to viewport center.
     app.style.width = '1180px';
     app.style.height = '820px';
-    app.style.position = 'absolute';
-    app.style.top = '0';
-    app.style.left = '0';
     const s = Math.min(W / 820, H / 1180);
     app.style.transform = `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(-590px,-410px)`;
   } else {
-    // Landscape: fluid layout fills the viewport — clear any portrait overrides.
-    app.style.removeProperty('width');
-    app.style.removeProperty('height');
-    app.style.removeProperty('position');
-    app.style.removeProperty('top');
-    app.style.removeProperty('left');
-    app.style.removeProperty('transform');
+    // Landscape: scale to fill the full viewport height, then widen the canvas
+    // so it fills the full viewport width — #left expands to use all the space.
+    const s = H / 820;
+    app.style.height = '820px';
+    app.style.width = `${Math.round(W / s)}px`;
+    app.style.transform = `scale(${s})`;
   }
 }
 
