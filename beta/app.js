@@ -56,28 +56,110 @@ const NEEDS_L2 = [
   { label: 'Inside the body', sub: null,     wide: true  },
 ];
 
-// ── Timing constants ─────────────────────────────────────────────────────
-const SCAN_ZONE_MS = 1600;   // ms per top-level zone (pred row or grid row)
-const SCAN_ITEM_MS = 1100;   // ms per item inside a zone
-const DWELL_MS     = 1500;   // ms to hold for dwell selection
+// ── Admin state bridge ───────────────────────────────────────────────────
+const EV_STATE_KEY = 'ev-state';
+
+const ADMIN_DEFAULTS = {
+  inputMode:        'direct',
+  scanSpeedMs:      1600,
+  dwellMs:          1500,
+  theme:            'light',
+  letterLayout:     'frequency',
+  gridDensity:      'default',
+  ttsVoiceName:     '',
+  ttsRate:          1.0,
+  ttsPitch:         1.0,
+  showSpellingGrid: true,
+  showPredictionRow: true,
+  showQuickPhrases: true,
+  showYesNo:        true,
+  showNeedsMenu:    true,
+  quickPhrases:     ['Please move me', 'Scratch my head', 'Thank you', 'One moment'],
+};
+
+function readAdminState() {
+  try {
+    const raw = localStorage.getItem(EV_STATE_KEY);
+    if (!raw) return migrateFromLegacy();
+    const parsed = JSON.parse(raw);
+    const s = parsed.settings || {};
+    const phraseObjs = parsed.quickPhrases;
+    return {
+      inputMode:         s.inputMode        || ADMIN_DEFAULTS.inputMode,
+      scanSpeedMs:       s.scanSpeedMs      || ADMIN_DEFAULTS.scanSpeedMs,
+      dwellMs:           s.dwellMs          || ADMIN_DEFAULTS.dwellMs,
+      theme:             s.theme            || ADMIN_DEFAULTS.theme,
+      letterLayout:      s.letterLayout     || ADMIN_DEFAULTS.letterLayout,
+      gridDensity:       s.gridDensity      || ADMIN_DEFAULTS.gridDensity,
+      ttsVoiceName:      s.ttsVoiceName     || ADMIN_DEFAULTS.ttsVoiceName,
+      ttsRate:           s.ttsRate          != null ? s.ttsRate  : ADMIN_DEFAULTS.ttsRate,
+      ttsPitch:          s.ttsPitch         != null ? s.ttsPitch : ADMIN_DEFAULTS.ttsPitch,
+      showSpellingGrid:  s.showSpellingGrid  != null ? !!s.showSpellingGrid  : ADMIN_DEFAULTS.showSpellingGrid,
+      showPredictionRow: s.showPredictionRow != null ? !!s.showPredictionRow : ADMIN_DEFAULTS.showPredictionRow,
+      showQuickPhrases:  s.showQuickPhrases  != null ? !!s.showQuickPhrases  : ADMIN_DEFAULTS.showQuickPhrases,
+      showYesNo:         s.showYesNo         != null ? !!s.showYesNo         : ADMIN_DEFAULTS.showYesNo,
+      showNeedsMenu:     s.showNeedsMenu     != null ? !!s.showNeedsMenu     : ADMIN_DEFAULTS.showNeedsMenu,
+      quickPhrases: Array.isArray(phraseObjs)
+        ? phraseObjs.slice(0, 4).map(p => p.text || p).filter(Boolean)
+        : ADMIN_DEFAULTS.quickPhrases,
+    };
+  } catch {
+    return { ...ADMIN_DEFAULTS };
+  }
+}
+
+function migrateFromLegacy() {
+  const theme   = localStorage.getItem('ev-theme');
+  const layout  = localStorage.getItem('ev-layout');
+  const density = localStorage.getItem('ev-density');
+  return {
+    ...ADMIN_DEFAULTS,
+    theme:       (theme   === 'dark')                        ? 'dark'      : ADMIN_DEFAULTS.theme,
+    letterLayout:(layout  === 'abc' || layout === 'frequency') ? layout    : ADMIN_DEFAULTS.letterLayout,
+    gridDensity: (density === 'large')                       ? 'large'     : ADMIN_DEFAULTS.gridDensity,
+  };
+}
+
+function saveSettingToAdminState(patch) {
+  try {
+    const raw = localStorage.getItem(EV_STATE_KEY);
+    const state = raw ? JSON.parse(raw) : { schemaVersion: 1, settings: {} };
+    state.settings = { ...state.settings, ...patch };
+    localStorage.setItem(EV_STATE_KEY, JSON.stringify(state));
+  } catch { /* storage unavailable */ }
+}
 
 // ── State ────────────────────────────────────────────────────────────────
 const S = {
   message:      '',
-  theme:        localStorage.getItem('ev-theme')   || 'light',
-  layout:       localStorage.getItem('ev-layout')  || 'abc',
-  density:      localStorage.getItem('ev-density') || 'default',
-  inputMode:    'direct',    // 'direct' | 'scan' | 'dwell'
-  needsMode:    'none',      // 'none' | 'l1' | 'l2'
-  needsL1Sel:   null,        // label chosen at L1 (for speak)
   restoredDraft: false,
   predictions:  [],
+
+  // Settings (populated from admin state on init and on storage events)
+  theme:        'light',
+  layout:       'frequency',
+  density:      'default',
+  inputMode:    'direct',
+  scanSpeedMs:  1600,
+  dwellMs:      1500,
+  ttsVoiceName: '',
+  ttsRate:      1.0,
+  ttsPitch:     1.0,
+  showSpellingGrid: true,
+  showPredictionRow: true,
+  showQuickPhrases:  true,
+  showYesNo:    true,
+  showNeedsMenu: true,
   quickPhrases: ['Please move me', 'Scratch my head', 'Thank you', 'One moment'],
 
+  // Needs navigation
+  needsMode:    'none',
+  needsL1Sel:   null,
+
   // Scanning
-  scanPhase:  'zone',   // 'zone' | 'item'
-  scanZone:   0,        // index into scanZones()
-  scanItem:   0,        // index within current zone
+  scanPhase:  'zone',
+  scanZone:   0,
+  scanItem:   0,
   scanTimer:  null,
 
   // Dwell
@@ -85,6 +167,25 @@ const S = {
   dwellRAF:   null,
   dwellStart: null,
 };
+
+function applyAdminSettings() {
+  const a = readAdminState();
+  S.theme        = a.theme;
+  S.layout       = a.letterLayout;
+  S.density      = a.gridDensity;
+  S.inputMode    = a.inputMode;
+  S.scanSpeedMs  = a.scanSpeedMs;
+  S.dwellMs      = a.dwellMs;
+  S.ttsVoiceName = a.ttsVoiceName;
+  S.ttsRate      = a.ttsRate;
+  S.ttsPitch     = a.ttsPitch;
+  S.showSpellingGrid  = a.showSpellingGrid;
+  S.showPredictionRow = a.showPredictionRow;
+  S.showQuickPhrases  = a.showQuickPhrases;
+  S.showYesNo    = a.showYesNo;
+  S.showNeedsMenu     = a.showNeedsMenu;
+  S.quickPhrases = a.quickPhrases;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 function h(str) {
@@ -123,7 +224,6 @@ function scanZones() {
 function computePredictions(msg) {
   if (!msg) return PHRASE_SUGGESTIONS.slice(0, 5);
 
-  // Trailing space means the last word was just completed — suggest next words
   if (msg.endsWith(' ')) {
     return ['and', 'but', 'please', 'now', 'I'].slice(0, 5);
   }
@@ -131,7 +231,6 @@ function computePredictions(msg) {
   const trimmed = msg.trimEnd();
   if (!trimmed) return PHRASE_SUGGESTIONS.slice(0, 5);
 
-  // Find the current partial word (characters since the last space)
   const lastSpace = trimmed.lastIndexOf(' ');
   const partial   = lastSpace >= 0 ? trimmed.slice(lastSpace + 1) : trimmed;
 
@@ -143,10 +242,23 @@ function computePredictions(msg) {
 }
 
 // ── Speech ───────────────────────────────────────────────────────────────
+let _ttsVoiceCache = null;
+let _ttsVoiceCacheName = null;
+
 function speak(text) {
   if (!text || !text.trim()) return;
   window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text.trim()));
+  const utt = new SpeechSynthesisUtterance(text.trim());
+
+  if (S.ttsVoiceName && S.ttsVoiceName !== _ttsVoiceCacheName) {
+    _ttsVoiceCache = speechSynthesis.getVoices().find(v => v.name === S.ttsVoiceName) || null;
+    _ttsVoiceCacheName = S.ttsVoiceName;
+  }
+  if (_ttsVoiceCache) utt.voice = _ttsVoiceCache;
+  utt.rate  = S.ttsRate;
+  utt.pitch = S.ttsPitch;
+
+  window.speechSynthesis.speak(utt);
 }
 
 // ── Message mutations ────────────────────────────────────────────────────
@@ -204,7 +316,7 @@ function startScan() {
   S.scanZone  = 0;
   S.scanItem  = 0;
   advanceZone();
-  renderGrid();   // show switch button
+  renderGrid();
 }
 
 function stopScan() {
@@ -222,22 +334,22 @@ function advanceZone() {
     const zones = scanZones();
     S.scanZone = (S.scanZone + 1) % zones.length;
     advanceZone();
-  }, SCAN_ZONE_MS);
+  }, S.scanSpeedMs);
 }
 
 function advanceItem(items) {
   renderGrid();
   renderPredRow();
+  const itemMs = Math.round(S.scanSpeedMs * 0.69);
   S.scanTimer = setTimeout(() => {
     S.scanItem = (S.scanItem + 1) % items.length;
-    // After one full cycle with no press → back to zone scan
     if (S.scanItem === 0) {
       S.scanPhase = 'zone';
       advanceZone();
     } else {
       advanceItem(items);
     }
-  }, SCAN_ITEM_MS);
+  }, itemMs);
 }
 
 function onSwitch() {
@@ -248,7 +360,6 @@ function onSwitch() {
   const zone  = zones[S.scanZone];
 
   if (S.scanPhase === 'zone') {
-    // Enter item scan for this zone
     S.scanPhase = 'item';
     S.scanItem  = 0;
     if (zone.type === 'pred') {
@@ -260,7 +371,6 @@ function onSwitch() {
       advanceItem(rows[zone.rowIdx]);
     }
   } else {
-    // Select current item
     if (zone.type === 'pred') {
       const pred = S.predictions[S.scanItem];
       if (pred) {
@@ -286,7 +396,7 @@ function startDwell(keyEl, char) {
 
   function tick(ts) {
     if (S.dwellEl !== keyEl) return;
-    const prog = Math.min((ts - S.dwellStart) / DWELL_MS, 1);
+    const prog = Math.min((ts - S.dwellStart) / S.dwellMs, 1);
     keyEl.style.setProperty('--dp', prog);
     if (prog < 1) {
       S.dwellRAF = requestAnimationFrame(tick);
@@ -314,6 +424,13 @@ function render() {
   app.dataset.theme   = S.theme;
   app.dataset.density = S.density;
   document.body.dataset.theme = S.theme;
+
+  // Section visibility
+  el('pred-row').classList.toggle('section-hidden', !S.showPredictionRow);
+  el('yes-btn').classList.toggle('section-hidden', !S.showYesNo);
+  el('no-btn').classList.toggle('section-hidden', !S.showYesNo);
+  el('needs-btn').classList.toggle('section-hidden', !S.showNeedsMenu);
+
   renderMsgBar();
   renderPredRow();
   renderGridArea();
@@ -395,11 +512,12 @@ function renderPredRow() {
 function renderGridArea() {
   const sgrid  = el('spelling-grid');
   const npanel = el('needs-panel');
+  const showGrid = S.showSpellingGrid;
 
   if (S.needsMode === 'none') {
-    sgrid.classList.remove('hidden');
+    sgrid.classList.toggle('hidden', !showGrid);
     npanel.classList.add('hidden');
-    renderGrid();
+    if (showGrid) renderGrid();
   } else {
     sgrid.classList.add('hidden');
     npanel.classList.remove('hidden');
@@ -416,7 +534,6 @@ function renderGrid() {
   grid.innerHTML = '';
 
   rows.forEach((keys, ri) => {
-    const zone = zones[ri + 1]; // zone 0 is pred row
     const isZoneHighlight = S.inputMode === 'scan' && S.scanPhase === 'zone' &&
                             S.scanZone === ri + 1;
     const isItemRow = S.inputMode === 'scan' && S.scanPhase === 'item' &&
@@ -462,7 +579,6 @@ function renderGrid() {
         keyEl.addEventListener('pointerleave', stopDwell);
         keyEl.addEventListener('pointercancel', stopDwell);
       }
-      // Scan mode: keys are not directly interactive (switch button drives selection)
 
       rowEl.appendChild(keyEl);
     });
@@ -517,9 +633,11 @@ function renderNeeds() {
 // Rail (quick phrases, mode/settings controls)
 function renderRail() {
   const qg = el('quick-group');
+  const phrasesToShow = S.showQuickPhrases ? S.quickPhrases : [];
+
   qg.innerHTML = `
-    <span class="quick-label">QUICK PHRASES</span>
-    ${S.quickPhrases.map((p, i) =>
+    ${S.showQuickPhrases ? `<span class="quick-label">QUICK PHRASES</span>` : ''}
+    ${phrasesToShow.map((p, i) =>
       `<button class="quick-btn" data-i="${i}">${h(p)}</button>`
     ).join('')}
     <div class="rail-controls">
@@ -533,6 +651,7 @@ function renderRail() {
         <button class="set-btn" id="btn-layout">${S.layout === 'abc' ? 'A–Z' : 'Freq'}</button>
         <button class="set-btn" id="btn-density">${S.density === 'default' ? 'Larger' : 'Smaller'}</button>
       </div>
+      <a class="admin-link" href="../admin/" title="Caregiver settings">⚙ Settings</a>
     </div>`;
 
   qg.querySelectorAll('.quick-btn').forEach(btn => {
@@ -551,6 +670,7 @@ function renderRail() {
       if (mode === S.inputMode) return;
       stopDwell();
       S.inputMode = mode;
+      saveSettingToAdminState({ inputMode: mode });
       if (mode === 'scan') startScan();
       else stopScan();
       render();
@@ -559,49 +679,44 @@ function renderRail() {
 
   qg.querySelector('#btn-theme').onclick = () => {
     S.theme = S.theme === 'light' ? 'dark' : 'light';
-    localStorage.setItem('ev-theme', S.theme);
+    saveSettingToAdminState({ theme: S.theme });
     render();
   };
   qg.querySelector('#btn-layout').onclick = () => {
     S.layout = S.layout === 'abc' ? 'frequency' : 'abc';
-    localStorage.setItem('ev-layout', S.layout);
+    saveSettingToAdminState({ letterLayout: S.layout });
     render();
   };
   qg.querySelector('#btn-density').onclick = () => {
     S.density = S.density === 'default' ? 'large' : 'default';
-    localStorage.setItem('ev-density', S.density);
+    saveSettingToAdminState({ gridDensity: S.density });
     render();
   };
 }
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
-// Scale the 1180×820 design to fit (never overflowing), then EXPAND the canvas
-// in whichever dimension has leftover space so it fills the viewport edge to
-// edge. The flex layout absorbs the extra: #left widens when there's horizontal
-// slack; the grid / quick-phrases grow when there's vertical slack.
 function scaleApp() {
   const app = el('app');
   const W = window.innerWidth, H = window.innerHeight;
   if (H > W) {
-    // Portrait phone: rotate the canvas 90° so its long edge runs down-screen.
-    // Double-translate trick: center to origin → rotate → scale → viewport center.
     const s = Math.min(H / 1180, W / 820);
-    const cw = H / s, ch = W / s;          // canvas grows past 1180×820 to fill
+    const cw = H / s, ch = W / s;
     app.style.width = `${cw}px`;
     app.style.height = `${ch}px`;
     app.style.transform =
       `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(${-cw/2}px,${-ch/2}px)`;
   } else {
-    // Landscape: scale from the top-left corner, expand canvas to W×H / s.
     const s = Math.min(W / 1180, H / 820);
-    app.style.width = `${W / s}px`;        // ≥ 1180 → #left expands
-    app.style.height = `${H / s}px`;       // ≥ 820  → grid grows taller
+    app.style.width = `${W / s}px`;
+    app.style.height = `${H / s}px`;
     app.style.transform = `scale(${s})`;
   }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
 function init() {
+  applyAdminSettings();
+
   // Restore draft
   const saved = localStorage.getItem('ev-draft');
   if (saved) {
@@ -612,13 +727,9 @@ function init() {
 
   render();
 
-  // Dismiss draft chip after 3s or on first input
   if (S.restoredDraft) {
     setTimeout(() => {
-      if (S.restoredDraft) {
-        S.restoredDraft = false;
-        renderMsgBar();
-      }
+      if (S.restoredDraft) { S.restoredDraft = false; renderMsgBar(); }
     }, 3000);
   }
 
@@ -634,11 +745,8 @@ function init() {
   // Physical keyboard
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
     if (e.key === ' ' && S.inputMode === 'scan') {
-      e.preventDefault();
-      onSwitch();
-      return;
+      e.preventDefault(); onSwitch(); return;
     }
     if (e.key === 'Backspace')      { e.preventDefault(); clearLast(); return; }
     if (e.key === 'Escape')         { e.preventDefault(); clearAll();  return; }
@@ -648,13 +756,19 @@ function init() {
     }
   });
 
+  // Cross-tab sync: re-apply settings when admin changes ev-state in another tab
+  window.addEventListener('storage', e => {
+    if (e.key !== EV_STATE_KEY) return;
+    _ttsVoiceCache = null; // invalidate voice cache
+    const wasScanning = S.inputMode === 'scan';
+    applyAdminSettings();
+    if (wasScanning && S.inputMode !== 'scan') stopScan();
+    else if (!wasScanning && S.inputMode === 'scan') startScan();
+    render();
+  });
 }
 
-// Block iOS double-tap-to-zoom (Safari ignores user-scalable=no). Without this,
-// a quick double-tap — e.g. on Clear, which disables itself after the first tap,
-// so the 2nd tap lands on a now-disabled button — zooms the page with no way to
-// pinch back out. We only cancel the synthetic event when the 2nd tap is NOT on an
-// enabled button, so rapid taps on a live control (e.g. Clear-letter) still fire.
+// Block iOS double-tap-to-zoom
 let lastTouchEnd = 0;
 document.addEventListener('touchend', e => {
   const now = Date.now();

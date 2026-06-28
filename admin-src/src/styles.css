@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* EchoVoice design tokens — mirrors beta/app.css :root */
+:root {
+  --app-bg:    #EEF1F5;
+  --surface:   #FFFFFF;
+  --ink:       #161B22;
+  --ink2:      #5B6571;
+  --hair:      #DCE1E7;
+  --accent:    #2E6BE6;
+  --acc-dk:    #1E50B8;
+  --acc-ink:   #FFFFFF;
+  --acc-tint:  #EAF1FE;
+  --acc-bdr:   #CBD9F4;
+  --yes:       #2F7A52;
+  --no:        #B23B3B;
+  --scan:      #D9870B;
+  --dwell:     #0E9384;
+  --key-face:  #FFFFFF;
+  --key-bdr:   #C9D0D8;
+  --dis-face:  #EEF1F4;
+  --dis-ink:   #AAB1BA;
+  --empty-bg:  #F1F3F6;
+  --field-bg:  #F6F8FB;
+  --field-bdr: #CDD5DE;
+  --off-face:  #EFF2F5;
+  --off-ink:   #5B6571;
+  --off-bdr:   #D7DDE4;
+  --mono:      #7A828D;
+  --track:     #D7DDE4;
+  --shadow:    0 4px 12px rgba(16,24,40,0.12);
+}
+
+[data-theme="dark"] {
+  --app-bg:    #0E1216;
+  --surface:   #161C22;
+  --ink:       #F1F4F7;
+  --ink2:      #9AA4AF;
+  --hair:      #2A333C;
+  --accent:    #3D78EA;
+  --acc-dk:    #2D5FC0;
+  --acc-ink:   #FFFFFF;
+  --acc-tint:  rgba(61,120,234,0.16);
+  --acc-bdr:   rgba(61,120,234,0.42);
+  --yes:       #3E9A6B;
+  --no:        #D2564E;
+  --scan:      #F2A33A;
+  --dwell:     #2FB8A6;
+  --key-face:  #1B232B;
+  --key-bdr:   #313B45;
+  --dis-face:  #12181E;
+  --dis-ink:   #5A646E;
+  --empty-bg:  #10161B;
+  --field-bg:  #10161B;
+  --field-bdr: #2A333C;
+  --off-face:  #1B232B;
+  --off-ink:   #9AA4AF;
+  --off-bdr:   #313B45;
+  --mono:      #7E8893;
+  --track:     #2A333C;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--app-bg);
+  font-family: 'Atkinson Hyperlegible', sans-serif;
+  color: var(--ink);
+  margin: 0; padding: 0;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--hair); border-radius: 3px; }

@@ -1,1 +1,4 @@
 design
+admin/
+admin-src/node_modules/
+admin-src/.angular/

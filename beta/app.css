@@ -443,6 +443,28 @@ body[data-theme="dark"] { background: #000000; }
 .needs-btn-label { font-weight: 700; font-size: 23px; color: var(--accent); }
 .needs-btn-glyph { font-size: 22px; color: var(--accent); }
 
+/* ── Section visibility (controlled by admin) ───────────────────────────── */
+.section-hidden { display: none !important; }
+
+/* Admin settings link in rail */
+.admin-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 2px solid var(--hair);
+  background: transparent;
+  color: var(--ink2);
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  text-decoration: none;
+  align-self: flex-start;
+  margin-top: 4px;
+}
+.admin-link:active { background: var(--empty-bg); }
+
 /* ── Scan switch button ──────────────────────────────────────────────────── */
 #switch-btn {
   position: absolute; bottom: 22px; right: 24px;
