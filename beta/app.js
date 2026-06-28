@@ -790,15 +790,25 @@ function init() {
     }
   });
 
-  // Cross-tab sync: re-apply settings when admin changes ev-state in another tab
-  window.addEventListener('storage', e => {
-    if (e.key !== EV_STATE_KEY) return;
+  // Re-apply admin settings, handling a scan-mode start/stop transition.
+  function refreshFromAdminState() {
     _ttsVoiceCache = null; // invalidate voice cache
     const wasScanning = S.inputMode === 'scan';
     applyAdminSettings();
     if (wasScanning && S.inputMode !== 'scan') stopScan();
     else if (!wasScanning && S.inputMode === 'scan') startScan();
     render();
+  }
+
+  // Cross-tab sync: admin changed ev-state in another tab/window.
+  window.addEventListener('storage', e => {
+    if (e.key === EV_STATE_KEY) refreshFromAdminState();
+  });
+
+  // Returning from the admin via the browser back button restores this page
+  // from the bfcache without re-running init — re-read settings then.
+  window.addEventListener('pageshow', e => {
+    if (e.persisted) refreshFromAdminState();
   });
 }
 

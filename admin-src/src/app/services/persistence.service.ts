@@ -16,6 +16,20 @@ export class PersistenceService {
       if (this.saveTimer) clearTimeout(this.saveTimer);
       this.saveTimer = setTimeout(() => this.persist(current), DEBOUNCE_MS);
     });
+
+    // Flush any pending debounced write before the page is hidden or
+    // navigated away (e.g. clicking "Back to communication"), so a setting
+    // changed in the last 300ms is never lost.
+    if (typeof window !== 'undefined') {
+      const flush = () => {
+        if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
+        this.persist(this.state());
+      };
+      window.addEventListener('pagehide', flush);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') flush();
+      });
+    }
   }
 
   updateSettings(patch: Partial<AppState['settings']>): void {
