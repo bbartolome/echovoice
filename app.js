@@ -643,6 +643,20 @@ function init() {
 
 }
 
+// Block iOS double-tap-to-zoom (Safari ignores user-scalable=no). Without this,
+// a quick double-tap — e.g. on Clear, which disables itself after the first tap,
+// so the 2nd tap lands on a now-disabled button — zooms the page with no way to
+// pinch back out. We only cancel the synthetic event when the 2nd tap is NOT on an
+// enabled button, so rapid taps on a live control (e.g. Clear-letter) still fire.
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 350 && !e.target.closest('button:not([disabled])')) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, { passive: false });
+
 // Scale before first paint, then keep in sync
 window.addEventListener('resize', scaleApp);
 window.addEventListener('orientationchange', () => setTimeout(scaleApp, 100));
