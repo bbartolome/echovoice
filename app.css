@@ -11,7 +11,6 @@ html, body {
 /* ── Scaling container ──────────────────────────────────────────────────── */
 #scaler {
   position: fixed; inset: 0;
-  display: flex; align-items: center; justify-content: center;
   overflow: hidden;
 }
 
@@ -89,10 +88,9 @@ html, body {
   background: var(--app-bg);
   display: flex; gap: 20px; padding: 20px;
   font-family: 'Atkinson Hyperlegible', sans-serif;
-  position: relative; overflow: hidden;
-  flex-shrink: 0;          /* prevent flex from squishing the fixed-size frame */
-  transform-origin: center; /* scale from the center so flex centering stays correct */
-  touch-action: none;       /* block pan/zoom on the whole canvas */
+  position: absolute; top: 0; left: 0; overflow: hidden;
+  transform-origin: top left;
+  touch-action: none;
   -webkit-user-select: none; user-select: none;
 }
 

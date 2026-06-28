@@ -576,7 +576,9 @@ function renderRail() {
 // ── Viewport scaling ──────────────────────────────────────────────────────
 function scaleApp() {
   const s = Math.min(window.innerWidth / 1180, window.innerHeight / 820);
-  el('app').style.transform = `scale(${s})`;
+  const x = (window.innerWidth  - 1180 * s) / 2;
+  const y = (window.innerHeight - 820  * s) / 2;
+  el('app').style.transform = `translate(${x}px,${y}px) scale(${s})`;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
