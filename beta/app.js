@@ -576,21 +576,27 @@ function renderRail() {
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
 function scaleApp() {
+  const app = el('app');
   const W = window.innerWidth, H = window.innerHeight;
-  const portrait = H > W;
-  let transform;
-  if (portrait) {
-    // Rotate 90° so the landscape canvas fills a portrait screen.
+  if (H > W) {
+    // Portrait phone: fix canvas to 1180×820 and rotate it to fill the screen.
     // Double-translate trick: move center to origin → rotate → scale → move to viewport center.
+    app.style.width = '1180px';
+    app.style.height = '820px';
+    app.style.position = 'absolute';
+    app.style.top = '0';
+    app.style.left = '0';
     const s = Math.min(W / 820, H / 1180);
-    transform = `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(-590px,-410px)`;
+    app.style.transform = `translate(${W/2}px,${H/2}px) rotate(90deg) scale(${s}) translate(-590px,-410px)`;
   } else {
-    const s = Math.min(W / 1180, H / 820);
-    const x = (W - 1180 * s) / 2;
-    const y = (H - 820  * s) / 2;
-    transform = `translate(${x}px,${y}px) scale(${s})`;
+    // Landscape: fluid layout fills the viewport — clear any portrait overrides.
+    app.style.removeProperty('width');
+    app.style.removeProperty('height');
+    app.style.removeProperty('position');
+    app.style.removeProperty('top');
+    app.style.removeProperty('left');
+    app.style.removeProperty('transform');
   }
-  el('app').style.transform = transform;
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────
