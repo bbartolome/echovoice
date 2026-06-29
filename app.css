@@ -448,7 +448,6 @@ body[data-theme="dark"] { background: #000000; }
 
 /* Admin settings link in rail */
 .admin-link {
-  display: none;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
