@@ -49,11 +49,30 @@ const LAYOUTS = {
   frequency: 'ETAOINSRHLDCUMFPGWYBVKJXQZ',
 };
 
-const NEEDS_L1 = ['Scratch', 'Massage', 'Move', 'Change'];
-const NEEDS_L2 = [
-  { label: 'Upper body', sub: 'head · face', wide: false },
-  { label: 'Lower body', sub: null,          wide: false },
-  { label: 'Inside the body', sub: null,     wide: true  },
+// Default needs tree — mirrors DEFAULT_NEEDS_TREE in admin-src/.../app-state.model.ts.
+// Used when the admin has never saved a tree. Caregiver edits in the admin replace this.
+const DEFAULT_NEEDS_TREE = [
+  { id: 'scratch', label: 'Scratch', children: [
+    { id: 'scratch-head', label: 'Head' },
+    { id: 'scratch-back', label: 'Back' },
+    { id: 'scratch-arm',  label: 'Arm' },
+    { id: 'scratch-other', label: 'Other', isOther: true, locked: true },
+  ]},
+  { id: 'massage', label: 'Massage', children: [
+    { id: 'massage-shoulder', label: 'Shoulder' },
+    { id: 'massage-back', label: 'Back' },
+    { id: 'massage-hand', label: 'Hand' },
+    { id: 'massage-other', label: 'Other', isOther: true, locked: true },
+  ]},
+  { id: 'move', label: 'Move / reposition', children: [
+    { id: 'move-upper', label: 'Upper body' },
+    { id: 'move-lower', label: 'Lower body' },
+    { id: 'move-other', label: 'Other', isOther: true, locked: true },
+  ]},
+  { id: 'change', label: 'Change', children: [
+    { id: 'change-other', label: 'Other', isOther: true, locked: true },
+  ]},
+  { id: 'root-other', label: 'Other', isOther: true, locked: true },
 ];
 
 // ── Admin state bridge ───────────────────────────────────────────────────
@@ -75,6 +94,8 @@ const ADMIN_DEFAULTS = {
   showYesNo:        true,
   showNeedsMenu:    true,
   quickPhrases:     ['Please move me', 'Scratch my head', 'Thank you', 'One moment'],
+  needsTree:        DEFAULT_NEEDS_TREE,
+  needsRootQuestion: 'What do you need?',
 };
 
 function readAdminState() {
@@ -99,6 +120,10 @@ function readAdminState() {
       showQuickPhrases:  s.showQuickPhrases  != null ? !!s.showQuickPhrases  : ADMIN_DEFAULTS.showQuickPhrases,
       showYesNo:         s.showYesNo         != null ? !!s.showYesNo         : ADMIN_DEFAULTS.showYesNo,
       showNeedsMenu:     s.showNeedsMenu     != null ? !!s.showNeedsMenu     : ADMIN_DEFAULTS.showNeedsMenu,
+      needsTree: (Array.isArray(parsed.needsTree) && parsed.needsTree.length)
+        ? parsed.needsTree
+        : ADMIN_DEFAULTS.needsTree,
+      needsRootQuestion: parsed.needsRootQuestion || ADMIN_DEFAULTS.needsRootQuestion,
       quickPhrases: Array.isArray(phraseObjs)
         ? phraseObjs.slice(0, 4).map(p => p.text || p).filter(Boolean)
         : ADMIN_DEFAULTS.quickPhrases,
@@ -167,10 +192,13 @@ const S = {
   showYesNo:    true,
   showNeedsMenu: true,
   quickPhrases: ['Please move me', 'Scratch my head', 'Thank you', 'One moment'],
+  needsTree:    [],
+  needsRootQuestion: 'What do you need?',
 
-  // Needs navigation
-  needsMode:    'none',
-  needsL1Sel:   null,
+  // Needs navigation: needsOpen toggles the panel; needsPath is the stack of
+  // node ids the user has drilled into (empty = root level).
+  needsOpen:    false,
+  needsPath:    [],
 
   // Scanning
   scanPhase:  'zone',
@@ -201,6 +229,8 @@ function applyAdminSettings() {
   S.showYesNo    = a.showYesNo;
   S.showNeedsMenu     = a.showNeedsMenu;
   S.quickPhrases = a.quickPhrases;
+  S.needsTree    = a.needsTree;
+  S.needsRootQuestion = a.needsRootQuestion;
   if (window.Pred) Pred.setAdminData({
     personalWords: a.personalWords || [],
     phrases:       a.allPhraseTexts || a.quickPhrases,
@@ -547,7 +577,7 @@ function renderGridArea() {
   const npanel = el('needs-panel');
   const showGrid = S.showSpellingGrid;
 
-  if (S.needsMode === 'none') {
+  if (!S.needsOpen) {
     sgrid.classList.toggle('hidden', !showGrid);
     npanel.classList.add('hidden');
     if (showGrid) renderGrid();
@@ -620,22 +650,53 @@ function renderGrid() {
   });
 }
 
-// Needs panel
+// Needs panel — renders the admin-defined needs tree at any depth.
+// A node with non-"Other" children is a category (drills deeper); a node with
+// none is a leaf (speaks the full path and closes). "Other" at any level spells out.
+
+// Resolve the list of nodes at the current S.needsPath, plus the parent's label.
+function needsLevel() {
+  let list = S.needsTree || [];
+  let parentLabel = null;
+  for (const id of (S.needsPath || [])) {
+    const node = (list || []).find(n => n.id === id);
+    if (node && Array.isArray(node.children)) { list = node.children; parentLabel = node.label; }
+    else { list = []; break; }
+  }
+  return { list, parentLabel };
+}
+
+// Walk the tree along a list of ids, collecting each node's label.
+function needsLabelsForPath(ids) {
+  const labels = [];
+  let list = S.needsTree || [];
+  for (const id of ids) {
+    const node = (list || []).find(n => n.id === id);
+    if (!node) break;
+    labels.push(node.label);
+    list = node.children || [];
+  }
+  return labels;
+}
+
 function renderNeeds() {
   const panel = el('needs-panel');
-  const isL2  = S.needsMode === 'l2';
-  const tiles = isL2 ? NEEDS_L2 : NEEDS_L1.map(l => ({ label: l, sub: null, wide: false }));
-  const title = isL2 ? 'Where?' : 'What do you need?';
+  const { list, parentLabel } = needsLevel();
+  const atRoot = (S.needsPath || []).length === 0;
+  const title  = atRoot ? (S.needsRootQuestion || 'What do you need?') : (parentLabel || '');
 
-  const tilesHTML = tiles.map(t => `
-    <div class="needs-tile${t.wide ? ' wide' : ''}" data-label="${h(t.label)}">
-      <span class="tile-label">${h(t.label)}</span>
-      ${t.sub ? `<span class="tile-sub">${h(t.sub)}</span>` : ''}
-    </div>`).join('');
+  const tiles = (list || []).filter(n => !n.isOther);
+  const tilesHTML = tiles.map(n => {
+    const isLeaf = !(Array.isArray(n.children) && n.children.some(c => !c.isOther));
+    return `
+    <div class="needs-tile" data-id="${h(n.id)}" data-leaf="${isLeaf ? '1' : '0'}">
+      <span class="tile-label">${h(n.label)}</span>
+    </div>`;
+  }).join('');
 
   panel.innerHTML = `
     <div class="needs-hdr">
-      ${isL2 ? `<button class="needs-back" id="needs-back"><span class="needs-back-gl">‹</span>Back</button>` : ''}
+      ${!atRoot ? `<button class="needs-back" id="needs-back"><span class="needs-back-gl">‹</span>Back</button>` : ''}
       <span class="needs-title">${h(title)}</span>
     </div>
     <div class="needs-tiles">${tilesHTML}</div>
@@ -644,23 +705,31 @@ function renderNeeds() {
       <span class="needs-other-hint">Spell it out</span>
     </div>`;
 
-  if (isL2) {
-    panel.querySelector('#needs-back').onclick = () => { S.needsMode = 'l1'; render(); };
+  if (!atRoot) {
+    panel.querySelector('#needs-back').onclick = () => {
+      S.needsPath = S.needsPath.slice(0, -1);
+      render();
+    };
   }
   panel.querySelectorAll('.needs-tile').forEach(t => {
     t.onclick = () => {
-      if (!isL2) {
-        S.needsL1Sel = t.dataset.label;
-        S.needsMode = 'l2';
+      const id = t.dataset.id;
+      if (t.dataset.leaf === '0') {
+        S.needsPath = [...S.needsPath, id];
         render();
       } else {
-        speak(`${S.needsL1Sel || ''} — ${t.dataset.label}`);
-        S.needsMode = 'none';
+        speak(needsLabelsForPath([...S.needsPath, id]).join(' — '));
+        S.needsOpen = false;
+        S.needsPath = [];
         render();
       }
     };
   });
-  panel.querySelector('#needs-other').onclick = () => { S.needsMode = 'none'; render(); };
+  panel.querySelector('#needs-other').onclick = () => {
+    S.needsOpen = false;
+    S.needsPath = [];
+    render();
+  };
 }
 
 // Rail (quick phrases, mode/settings controls)
@@ -680,11 +749,8 @@ function renderRail() {
         <button class="mode-btn${S.inputMode === 'dwell'  ? ' active' : ''}" data-mode="dwell">Dwell</button>
       </div>
       <div class="settings-row">
-        <button class="set-btn" id="btn-theme">${S.theme === 'light' ? '🌙 Dark' : '☀️ Light'}</button>
-        <button class="set-btn" id="btn-layout">${S.layout === 'abc' ? 'A–Z' : 'Freq'}</button>
-        <button class="set-btn" id="btn-density">${S.density === 'default' ? 'Larger' : 'Smaller'}</button>
+        <a class="set-btn" href="../admin/" title="Caregiver settings">⚙ Settings</a>
       </div>
-      <a class="admin-link" href="../admin/" title="Caregiver settings">⚙ Settings</a>
     </div>`;
 
   qg.querySelectorAll('.quick-btn').forEach(btn => {
@@ -710,21 +776,6 @@ function renderRail() {
     };
   });
 
-  qg.querySelector('#btn-theme').onclick = () => {
-    S.theme = S.theme === 'light' ? 'dark' : 'light';
-    saveSettingToAdminState({ theme: S.theme });
-    render();
-  };
-  qg.querySelector('#btn-layout').onclick = () => {
-    S.layout = S.layout === 'abc' ? 'frequency' : 'abc';
-    saveSettingToAdminState({ letterLayout: S.layout });
-    render();
-  };
-  qg.querySelector('#btn-density').onclick = () => {
-    S.density = S.density === 'default' ? 'large' : 'default';
-    saveSettingToAdminState({ gridDensity: S.density });
-    render();
-  };
 }
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
@@ -771,7 +822,8 @@ function init() {
   el('yes-btn').onclick  = () => speak('Yes');
   el('no-btn').onclick   = () => speak('No');
   el('needs-btn').onclick = () => {
-    S.needsMode = S.needsMode === 'none' ? 'l1' : 'none';
+    S.needsOpen = !S.needsOpen;
+    S.needsPath = [];
     render();
   };
   el('switch-btn').onclick = onSwitch;
