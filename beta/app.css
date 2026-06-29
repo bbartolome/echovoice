@@ -425,12 +425,11 @@ body[data-theme="dark"] { background: #000000; }
 }
 
 .settings-row { display: flex; gap: 6px; }
-.set-btn {
+.admin-btn {
   flex: 1; height: 34px; border-radius: 9px;
   border: 2px solid var(--hair); background: transparent;
   color: var(--ink2); font-weight: 700; font-size: 12px;
 }
-.set-btn:active { background: var(--empty-bg); }
 
 /* Needs entry button */
 #needs-btn {

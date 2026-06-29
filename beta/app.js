@@ -749,7 +749,7 @@ function renderRail() {
         <button class="mode-btn${S.inputMode === 'dwell'  ? ' active' : ''}" data-mode="dwell">Dwell</button>
       </div>
       <div class="settings-row">
-        <a class="admin-link" href="../admin/" title="Caregiver settings">⚙ Settings</a>
+        <button class="set-btn" href="../admin/" title="Caregiver settings">⚙ Settings</button>
       </div>
     </div>`;
 
