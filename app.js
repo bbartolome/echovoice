@@ -680,8 +680,11 @@ function renderRail() {
         <button class="mode-btn${S.inputMode === 'dwell'  ? ' active' : ''}" data-mode="dwell">Dwell</button>
       </div>
       <div class="settings-row">
-        <a class="admin-link" href="../admin/" title="Caregiver settings">⚙ Settings</a>
+        <button class="set-btn" id="btn-theme">${S.theme === 'light' ? '🌙 Dark' : '☀️ Light'}</button>
+        <button class="set-btn" id="btn-layout">${S.layout === 'abc' ? 'A–Z' : 'Freq'}</button>
+        <button class="set-btn" id="btn-density">${S.density === 'default' ? 'Larger' : 'Smaller'}</button>
       </div>
+      <a class="admin-link" href="../admin/" title="Caregiver settings">⚙ Settings</a>
     </div>`;
 
   qg.querySelectorAll('.quick-btn').forEach(btn => {
