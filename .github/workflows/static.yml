@@ -44,6 +44,7 @@ jobs:
           cd admin-src
           npm ci
           npm run build
+          npm run postbuild
         # Outputs to admin/ at the repo root (configured in angular.json)
 
       - name: Setup Pages
