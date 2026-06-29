@@ -776,21 +776,6 @@ function renderRail() {
     };
   });
 
-  qg.querySelector('#btn-theme').onclick = () => {
-    S.theme = S.theme === 'light' ? 'dark' : 'light';
-    saveSettingToAdminState({ theme: S.theme });
-    render();
-  };
-  qg.querySelector('#btn-layout').onclick = () => {
-    S.layout = S.layout === 'abc' ? 'frequency' : 'abc';
-    saveSettingToAdminState({ letterLayout: S.layout });
-    render();
-  };
-  qg.querySelector('#btn-density').onclick = () => {
-    S.density = S.density === 'default' ? 'large' : 'default';
-    saveSettingToAdminState({ gridDensity: S.density });
-    render();
-  };
 }
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
