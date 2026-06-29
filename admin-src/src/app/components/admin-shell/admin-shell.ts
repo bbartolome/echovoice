@@ -105,6 +105,7 @@ import { PersistenceService } from '../../services/persistence.service';
       font-weight: 700;
       font-size: 16px;
       text-decoration: none;
+      touch-action: manipulation;
     }
     .back-btn:hover { background: var(--empty-bg); }
     .shell-body {

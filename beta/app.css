@@ -382,13 +382,14 @@ body[data-theme="dark"] { background: #000000; }
   color: #fff;
   display: flex; align-items: center; justify-content: center; gap: 14px;
   font-weight: 700; font-size: 42px;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow); touch-action: manipulation;
 }
 .yes { background: var(--yes); }
 .no  { background: var(--no); }
 .yes:active { filter: brightness(0.88); }
 .no:active  { filter: brightness(0.88); }
-.yn-glyph { font-size: 38px; line-height: 1; }
+.yn-glyph { font-size: 38px; line-height: 1; pointer-events: none; }
+.yn span   { pointer-events: none; }
 
 /* Quick phrases group */
 #quick-group {
@@ -475,7 +476,7 @@ body[data-theme="dark"] { background: #000000; }
   font-weight: 700; font-size: 26px; letter-spacing: 2px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.28);
   display: none; align-items: center; justify-content: center;
-  z-index: 200;
+  z-index: 200; touch-action: manipulation;
 }
 #switch-btn.visible { display: flex; }
 #switch-btn:active { filter: brightness(0.88); transform: translateY(1px); }
