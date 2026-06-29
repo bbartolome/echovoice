@@ -424,12 +424,15 @@ body[data-theme="dark"] { background: #000000; }
   background: var(--accent); border-color: var(--accent); color: var(--acc-ink);
 }
 
-.settings-row { display: flex; gap: 6px; }
-.admin-btn {
-  flex: 1; height: 34px; border-radius: 9px;
-  border: 2px solid var(--hair); background: transparent;
-  color: var(--ink2); font-weight: 700; font-size: 12px;
+.settings-row { display: flex; }
+.set-btn {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  flex: 1; height: 44px; border-radius: 11px;
+  border: 2px solid var(--hair); background: var(--surface);
+  color: var(--ink2); font-weight: 700; font-size: 13px;
+  text-decoration: none;
 }
+.set-btn:hover { border-color: var(--accent); color: var(--accent); }
 
 /* Needs entry button */
 #needs-btn {
@@ -447,6 +450,7 @@ body[data-theme="dark"] { background: #000000; }
 
 /* Admin settings link in rail */
 .admin-link {
+  flex: 1; height: 34px; border-radius: 9px;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
