@@ -267,6 +267,30 @@ import { NeedsNode } from '../../models/app-state.model';
     }
     .add-row:hover { background: var(--acc-tint); }
     .add-gl { font-size: 22px; line-height: 1; margin-top: -2px; }
+
+    @media (max-width: 700px) {
+      .page { padding: 16px 16px 48px; gap: 14px; }
+      .page-title { font-size: 30px; }
+      .page-sub { font-size: 16px; }
+      .name-card { padding: 14px 16px; }
+      .name-input { font-size: 18px; }
+      .name-field { min-height: 50px; }
+      .tree-card { padding: 14px 14px; gap: 12px; }
+      .tree-head-title { font-size: 19px; }
+      .node-row { min-height: 50px; padding: 8px 10px; gap: 8px; }
+      .grip { width: 12px; }
+      .chev { width: 32px; height: 32px; font-size: 20px; }
+      .node-label { font-size: 17px; }
+      .count-pill { font-size: 12px; padding: 4px 8px; }
+      .icon-btn { width: 38px; height: 38px; font-size: 15px; border-radius: 9px; }
+      .edit-input { height: 38px; font-size: 17px; }
+      .child-wrap { margin-left: 8px; padding-left: 14px; gap: 8px; }
+      .other-row { padding: 9px 12px; min-height: 46px; gap: 10px; }
+      .other-label { font-size: 17px; }
+      .other-hint { display: none; }
+      .add-row { font-size: 15px; padding: 9px 14px; }
+      .add-gl { font-size: 18px; }
+    }
   `]
 })
 export class AdminNeedsComponent {

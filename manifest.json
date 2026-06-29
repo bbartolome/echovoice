@@ -1,0 +1,23 @@
+{
+  "name": "EchoVoice",
+  "short_name": "EchoVoice",
+  "description": "Augmentative and Alternative Communication app",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#f0f1f6",
+  "theme_color": "#2e6be6",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

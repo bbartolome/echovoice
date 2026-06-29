@@ -238,6 +238,17 @@ export class AutofocusDirective implements AfterViewInit {
     .divider { display: flex; align-items: center; gap: 16px; margin: 4px 0; }
     .divider-line { flex: 1 1 0; height: 0; border-top: 2px dashed var(--acc-bdr); }
     .divider-label { font-weight: 700; font-size: 15px; color: var(--accent); white-space: nowrap; }
+
+    @media (max-width: 700px) {
+      .page { padding: 16px 16px 48px; gap: 14px; }
+      .page-title { font-size: 30px; }
+      .page-sub { font-size: 16px; }
+      .add-btn { font-size: 16px; padding: 11px 18px; }
+      .row { min-height: 58px; padding: 10px 12px; gap: 10px; }
+      .text { font-size: 18px; }
+      .edit-input { font-size: 18px; height: 42px; }
+      .icon-btn { width: 42px; height: 42px; font-size: 16px; }
+    }
   `]
 })
 export class AdminPhrasesComponent {
