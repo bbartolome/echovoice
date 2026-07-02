@@ -52,18 +52,21 @@ The admin build output (`admin/`) is gitignored; the GitHub Actions workflow (`s
 
 The vanilla comm view and the Angular admin share settings via a single `localStorage` key: **`ev-state`** (JSON, `AppState` shape, versioned with `schemaVersion`).
 
-- The admin is the primary writer via `PersistenceService`.
+- The admin is the **only** writer via `PersistenceService` — the comm view is read-only on `ev-state`.
 - The comm view reads on init and listens for `storage` events to live-update.
-- The comm view's rail buttons (theme/layout/density/mode) also write back to `ev-state`.
+- Current shape is `schemaVersion: 2`. `settings.scanAutoStart` (bool) replaced the old `inputMode`/`dwellMs`/`targetSize` fields; `migrateState()` in `app-state.model.ts` maps a v1 `inputMode === 'scan'` to `scanAutoStart: true` and drops the rest.
 - The draft message uses a separate `ev-draft` key (owned by the comm view).
 
 ## Architecture: comm view (beta/)
 
 - **Fixed canvas**: `#app` is always 1180 × 820 px (landscape).
+- **8-row scan layout**: rows 1–5 are the spelling grid, row 6 is predictions/quick phrases, row 7 is the message bar, row 8 is a static footer. Rows 1–6 each pair their content with a trailing action button (Settings, Clear, Yes, No, Scan/Pause, Needs) so every action is reachable by row-column scanning; the column is a fixed width so the six buttons line up vertically. Row 7's trailing button is Select while scanning / Backspace when idle, and is never itself a scan target — it's the switch actuator. Row 8 is never scanned.
+- **Access mode**: Direct and Scan are merged — direct taps always work, and scanning (`S.scanning`) is a runtime toggle started from the Scan button or `settings.scanAutoStart`, never persisted mid-session. Dwell mode has been removed.
+- **Needs board**: opening it swaps rows 1–5's *content* for a header + tiles (via the same row model, `needsRowItems()`); the whole trailing action column mirrors to the left edge (`#app.needs-open`) while open.
 - **Scaling**: `scaleApp()` transforms the canvas to fit any viewport.
 - **Theme**: `data-theme` on `#app` and `<body>` drives light/dark tokens.
 - **Touch guard**: a global `touchend` listener prevents iOS double-tap zoom.
-- **State**: all mutable state lives in the `S` object in `app.js`. `render()` is called after every mutation.
+- **State**: all mutable state lives in the `S` object in `app.js`. `render()` is called after every mutation. `getRows()` is the single source of truth for rendering, direct taps, and the scan sweep.
 - **Admin settings** loaded on init via `applyAdminSettings()` → `readAdminState()`.
 
 ## Architecture: admin (admin-src/)

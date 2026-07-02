@@ -4,7 +4,7 @@ describe('migrateState', () => {
   it('returns default state for null/undefined', () => {
     const s = migrateState(null);
     expect(s.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(s.settings.letterLayout).toBe('frequency');
+    expect(s.settings.letterLayout).toBe('abc');
     expect(s.settings.pinEnabled).toBe(false);
   });
 
@@ -13,11 +13,11 @@ describe('migrateState', () => {
   });
 
   it('merges partial settings over defaults', () => {
-    const raw = { schemaVersion: 1, settings: { theme: 'dark', letterLayout: 'abc' } };
+    const raw = { schemaVersion: 1, settings: { theme: 'dark', letterLayout: 'frequency' } };
     const s = migrateState(raw);
     expect(s.settings.theme).toBe('dark');
-    expect(s.settings.letterLayout).toBe('abc');
-    expect(s.settings.inputMode).toBe('direct');
+    expect(s.settings.letterLayout).toBe('frequency');
+    expect(s.settings.scanAutoStart).toBe(false);
   });
 
   it('preserves lists from raw state', () => {
@@ -30,12 +30,16 @@ describe('migrateState', () => {
     expect(s.people[0].name).toBe('Alice');
   });
 
-  it('default letterLayout is frequency', () => {
-    expect(DEFAULT_SETTINGS.letterLayout).toBe('frequency');
+  it('default letterLayout is abc', () => {
+    expect(DEFAULT_SETTINGS.letterLayout).toBe('abc');
   });
 
   it('default pinEnabled is false', () => {
     expect(DEFAULT_SETTINGS.pinEnabled).toBe(false);
+  });
+
+  it('default scanAutoStart is false', () => {
+    expect(DEFAULT_SETTINGS.scanAutoStart).toBe(false);
   });
 
   it('default state has quickPhrases', () => {
@@ -55,5 +59,32 @@ describe('migrateState', () => {
   it('preserves a custom needsRootQuestion from raw state', () => {
     const raw = { schemaVersion: 1, settings: {}, needsRootQuestion: 'How can I help?' };
     expect(migrateState(raw).needsRootQuestion).toBe('How can I help?');
+  });
+
+  it('migrates a v1 inputMode of "scan" to scanAutoStart true', () => {
+    const raw = { schemaVersion: 1, settings: { inputMode: 'scan' } };
+    expect(migrateState(raw).settings.scanAutoStart).toBe(true);
+  });
+
+  it('migrates a v1 inputMode of "direct" or "dwell" to scanAutoStart false', () => {
+    expect(migrateState({ schemaVersion: 1, settings: { inputMode: 'direct' } }).settings.scanAutoStart).toBe(false);
+    expect(migrateState({ schemaVersion: 1, settings: { inputMode: 'dwell' } }).settings.scanAutoStart).toBe(false);
+  });
+
+  it('strips the removed inputMode/dwellMs/targetSize keys from settings', () => {
+    const raw = { schemaVersion: 1, settings: { inputMode: 'scan', dwellMs: 900, targetSize: 'large' } };
+    const s = migrateState(raw);
+    expect('inputMode' in s.settings).toBe(false);
+    expect('dwellMs' in s.settings).toBe(false);
+    expect('targetSize' in s.settings).toBe(false);
+  });
+
+  it('preserves an explicit scanAutoStart on a v2 blob', () => {
+    const raw = { schemaVersion: 2, settings: { scanAutoStart: true } };
+    expect(migrateState(raw).settings.scanAutoStart).toBe(true);
+  });
+
+  it('stamps the current schemaVersion after migrating', () => {
+    expect(migrateState({ schemaVersion: 1, settings: {} }).schemaVersion).toBe(2);
   });
 });

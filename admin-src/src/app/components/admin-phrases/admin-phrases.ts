@@ -42,7 +42,7 @@ export class AutofocusDirective implements AfterViewInit {
       <div class="page-header">
         <h1 class="page-title">Quick phrases &amp; favourites</h1>
         <p class="page-sub">
-          Drag the <span class="grip-inline"></span> handle to reorder. The top four show on
+          Drag the <span class="grip-inline"></span> handle to reorder. The top five show on
           David's communication screen — drag a phrase above the line to put it there.
         </p>
       </div>
@@ -52,11 +52,11 @@ export class AutofocusDirective implements AfterViewInit {
         <span class="count">{{ phrases().length }} phrases</span>
       </div>
 
-      <div class="group-label"><span class="group-dot"></span> On his screen · top 4</div>
+      <div class="group-label"><span class="group-dot"></span> On his screen · top 5</div>
 
       <div class="list" cdkDropList (cdkDropListDropped)="drop($event)">
         @for (p of phrases(); track p.id; let i = $index) {
-          @if (i === 4) {
+          @if (i === 5) {
             <div class="divider">
               <span class="divider-line"></span>
               <span class="divider-label">Below the line · not on his screen</span>

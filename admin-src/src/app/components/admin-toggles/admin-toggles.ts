@@ -47,54 +47,66 @@ interface Toggle {
           }
         </section>
 
-        <!-- Mini preview -->
+        <!-- Mini preview — mirrors the 8-row scan layout: each row pairs its
+             content with the same trailing action button as the real screen. -->
         <div class="preview-panel">
           <div class="preview-label">PREVIEW</div>
           <div class="mini-screen" [attr.data-theme]="settings().theme">
-            <div class="mini-msgbar">Message area</div>
-            @if (settings().showPredictionRow) {
-              <div class="mini-pred">Predictions</div>
-            }
-            <div class="mini-middle">
-              @if (settings().showSpellingGrid) {
-                <div class="mini-grid">
-                  <div class="mini-key-row">
-                    @for (l of 'ETAOI'.split(''); track l) {
-                      <div class="mini-key">{{ l }}</div>
-                    }
-                  </div>
-                  <div class="mini-key-row">
-                    @for (l of 'NRSHL'.split(''); track l) {
-                      <div class="mini-key">{{ l }}</div>
-                    }
-                  </div>
-                  <div class="mini-key-row">
-                    @for (l of 'DCUMF'.split(''); track l) {
-                      <div class="mini-key">{{ l }}</div>
-                    }
-                  </div>
-                </div>
-              } @else if (settings().showNeedsMenu) {
-                <div class="mini-needs">What do you need?</div>
-              } @else {
-                <div class="mini-empty">—</div>
-              }
-
-              @if (settings().showYesNo || settings().showQuickPhrases || settings().showNeedsMenu) {
-                <div class="mini-rail">
-                  @if (settings().showYesNo) {
-                    <div class="mini-yes">Yes</div>
-                    <div class="mini-no">No</div>
-                  }
-                  @if (settings().showQuickPhrases) {
-                    <div class="mini-quick">Quick<br>phrases</div>
-                  }
-                  @if (settings().showNeedsMenu && settings().showSpellingGrid) {
-                    <div class="mini-needs-btn">Needs</div>
-                  }
-                </div>
-              }
+            <div class="mini-comm-row">
+              <div class="mini-content">
+                @if (settings().showSpellingGrid) {
+                  @for (l of ['A','B','C','D','E','F']; track l) { <div class="mini-key">{{ l }}</div> }
+                }
+              </div>
+              <div class="mini-chip mini-chip-muted">Settings</div>
             </div>
+            <div class="mini-comm-row">
+              <div class="mini-content">
+                @if (settings().showSpellingGrid) {
+                  @for (l of ['G','H','I','J','K','L']; track l) { <div class="mini-key">{{ l }}</div> }
+                }
+              </div>
+              <div class="mini-chip">Clear</div>
+            </div>
+            <div class="mini-comm-row">
+              <div class="mini-content">
+                @if (settings().showSpellingGrid) {
+                  @for (l of ['M','N','O','P','Q','R']; track l) { <div class="mini-key">{{ l }}</div> }
+                }
+              </div>
+              <div class="mini-chip mini-yes" [class.mini-blank]="!settings().showYesNo">Yes</div>
+            </div>
+            <div class="mini-comm-row">
+              <div class="mini-content">
+                @if (settings().showSpellingGrid) {
+                  @for (l of ['S','T','U','V','W','X']; track l) { <div class="mini-key">{{ l }}</div> }
+                }
+              </div>
+              <div class="mini-chip mini-no" [class.mini-blank]="!settings().showYesNo">No</div>
+            </div>
+            <div class="mini-comm-row">
+              <div class="mini-content">
+                @if (settings().showSpellingGrid) {
+                  @for (l of ['Y','Z','·',',','.','?']; track l) { <div class="mini-key">{{ l }}</div> }
+                }
+              </div>
+              <div class="mini-chip">Scan</div>
+            </div>
+            <div class="mini-comm-row mini-pred-row">
+              <div class="mini-content">
+                @if (settings().showPredictionRow) {
+                  <div class="mini-pred">{{ settings().showQuickPhrases ? 'Quick phrases' : 'Predictions' }}</div>
+                }
+              </div>
+              <div class="mini-chip mini-needs" [class.mini-blank]="!settings().showNeedsMenu">Needs</div>
+            </div>
+            <div class="mini-comm-row mini-msg-row">
+              <div class="mini-content">
+                <div class="mini-msgbar">Message · Speak</div>
+              </div>
+              <div class="mini-chip">Select</div>
+            </div>
+            <div class="mini-footer">© EchoVoice</div>
           </div>
           <p class="preview-note">This is a rough representation of how the communication screen will look.</p>
         </div>
@@ -206,7 +218,7 @@ interface Toggle {
       white-space: nowrap;
     }
 
-    /* Mini preview */
+    /* Mini preview — a thin vertical stack mirroring the 8 real screen rows */
     .preview-panel {
       width: 260px;
       flex-shrink: 0;
@@ -229,49 +241,12 @@ interface Toggle {
       padding: 8px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
-    }
-    .mini-screen[data-theme="dark"] { background: #0E1216; }
-    .mini-msgbar {
-      height: 32px;
-      background: var(--surface);
-      border: 1px solid var(--hair);
-      border-radius: 7px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9px;
-      color: var(--ink2);
-      font-weight: 600;
-    }
-    .mini-pred {
-      height: 16px;
-      background: var(--surface);
-      border: 1px solid var(--hair);
-      border-radius: 5px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 8px;
-      color: var(--ink2);
-    }
-    .mini-middle {
-      display: flex;
-      gap: 6px;
-      min-height: 80px;
-    }
-    .mini-grid {
-      flex: 1;
-      background: transparent;
-      display: flex;
-      flex-direction: column;
       gap: 4px;
     }
-    .mini-key-row {
-      display: flex;
-      gap: 3px;
-      flex: 1;
-    }
+    .mini-screen[data-theme="dark"] { background: #0E1216; }
+    .mini-comm-row { display: flex; gap: 4px; height: 16px; }
+    .mini-pred-row, .mini-msg-row { height: 20px; }
+    .mini-content { flex: 1; display: flex; gap: 2px; min-width: 0; }
     .mini-key {
       flex: 1;
       background: var(--surface);
@@ -280,53 +255,50 @@ interface Toggle {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 7px;
+      font-size: 6px;
       font-weight: 700;
       color: var(--ink);
     }
-    .mini-needs {
+    .mini-pred, .mini-msgbar {
       flex: 1;
       background: var(--surface);
       border: 1px solid var(--hair);
-      border-radius: 6px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 8px;
-      color: var(--ink);
-      font-weight: 700;
-      text-align: center;
-      padding: 4px;
-    }
-    .mini-empty {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
+      font-size: 6px;
       color: var(--ink2);
+      font-weight: 600;
     }
-    .mini-rail {
-      width: 44px;
+    .mini-chip {
+      width: 30px;
       flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .mini-yes, .mini-no, .mini-quick, .mini-needs-btn {
-      border-radius: 5px;
+      border-radius: 4px;
+      background: var(--surface);
+      border: 1px solid var(--hair);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 7px;
+      font-size: 6px;
       font-weight: 700;
-      line-height: 1.2;
+      color: var(--ink2);
       text-align: center;
     }
-    .mini-yes { background: #2F7A52; color: #fff; height: 22px; }
-    .mini-no { background: #B23B3B; color: #fff; height: 22px; }
-    .mini-quick { background: var(--surface); border: 1px solid var(--hair); color: var(--ink2); flex: 1; }
-    .mini-needs-btn { background: var(--acc-tint); border: 1px solid var(--acc-bdr); color: var(--accent); height: 18px; }
+    .mini-chip-muted { opacity: 0.7; }
+    .mini-chip.mini-yes { background: #2F7A52; color: #fff; border-color: #2F7A52; }
+    .mini-chip.mini-no { background: #B23B3B; color: #fff; border-color: #B23B3B; }
+    .mini-chip.mini-needs { background: var(--acc-tint); border-color: var(--acc-bdr); color: var(--accent); }
+    .mini-chip.mini-blank { visibility: hidden; }
+    .mini-footer {
+      height: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 6px;
+      color: var(--ink2);
+      opacity: 0.7;
+    }
     .preview-note {
       font-size: 13px;
       color: var(--ink2);
@@ -341,9 +313,9 @@ export class AdminTogglesComponent {
 
   readonly toggles: Toggle[] = [
     { key: 'showSpellingGrid', label: 'Spelling grid', desc: 'The A–Z keyboard for typing letters.' },
-    { key: 'showPredictionRow', label: 'Prediction row', desc: 'Word and phrase suggestions above the grid.' },
-    { key: 'showQuickPhrases', label: 'Quick phrases', desc: 'His most-used phrases in the side rail.' },
-    { key: 'showYesNo', label: 'Yes / No buttons', desc: 'Large Yes and No buttons in the side rail.' },
+    { key: 'showPredictionRow', label: 'Prediction row', desc: 'Word and phrase suggestions below the spelling grid.' },
+    { key: 'showQuickPhrases', label: 'Quick phrases', desc: 'Shown in the suggestion row when his message is empty.' },
+    { key: 'showYesNo', label: 'Yes / No buttons', desc: 'Yes and No buttons on the right edge of his screen.' },
     { key: 'showNeedsMenu', label: 'Needs menu', desc: 'The guided "What do you need?" menu.' },
   ];
 

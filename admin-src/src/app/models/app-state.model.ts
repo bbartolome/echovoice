@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export interface Person {
   name: string;
@@ -30,10 +30,8 @@ export interface DeviceHistory {
 }
 
 export interface Settings {
-  inputMode: 'direct' | 'scan' | 'dwell';
+  scanAutoStart: boolean;
   scanSpeedMs: number;
-  dwellMs: number;
-  targetSize: 'default' | 'large';
   gridDensity: 'default' | 'large';
   theme: 'light' | 'dark';
   letterLayout: 'abc' | 'frequency';
@@ -114,13 +112,11 @@ export const DEFAULT_QUICK_PHRASES: QuickPhrase[] = [
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
-  inputMode: 'direct',
+  scanAutoStart: false,
   scanSpeedMs: 1600,
-  dwellMs: 1500,
-  targetSize: 'default',
   gridDensity: 'default',
   theme: 'light',
-  letterLayout: 'frequency',
+  letterLayout: 'abc',
   ttsVoiceName: '',
   ttsRate: 1.0,
   ttsPitch: 1.0,
@@ -152,9 +148,26 @@ export const DEFAULT_STATE: AppState = {
 export function migrateState(raw: unknown): AppState {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_STATE };
   const r = raw as Record<string, unknown>;
+  const v = r['schemaVersion'];
 
-  if (!r['schemaVersion'] || r['schemaVersion'] === 1) {
-    const settings = { ...DEFAULT_SETTINGS, ...(r['settings'] as Partial<Settings> ?? {}) };
+  if (!v || v === 1 || v === 2) {
+    // Copy so the old inputMode/dwellMs/targetSize fields (schemaVersion 1)
+    // can be read for the scanAutoStart fallback, then dropped — they must
+    // not survive into the migrated settings object.
+    const rawSettings: Record<string, unknown> = { ...((r['settings'] as Record<string, unknown>) ?? {}) };
+    const scanAutoStart = rawSettings['scanAutoStart'] != null
+      ? !!rawSettings['scanAutoStart']
+      : rawSettings['inputMode'] === 'scan';
+    delete rawSettings['inputMode'];
+    delete rawSettings['dwellMs'];
+    delete rawSettings['targetSize'];
+
+    const settings: Settings = {
+      ...DEFAULT_SETTINGS,
+      ...(rawSettings as Partial<Settings>),
+      scanAutoStart,
+    };
+
     return {
       ...DEFAULT_STATE,
       ...(r as Partial<AppState>),

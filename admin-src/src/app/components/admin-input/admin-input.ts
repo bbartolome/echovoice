@@ -20,53 +20,38 @@ interface VoiceOption {
         <p class="page-sub">The settings family adjust most as his movement changes. Changes take effect immediately on his communication screen.</p>
       </div>
 
-      <!-- Selection mode -->
+      <!-- Scanning -->
       <section class="card">
+        <h2 class="card-title">Scanning</h2>
+
         <div class="setting-row">
           <div class="setting-info">
-            <div class="setting-label">Selection mode</div>
-            <div class="setting-desc">How he makes selections on the communication screen.</div>
+            <div class="setting-label">Start scanning automatically</div>
+            <div class="setting-desc">Row scanning begins as soon as the communication screen opens. He can pause or restart it with the Scan button.</div>
           </div>
-          <div class="seg-ctrl" role="group" aria-label="Selection mode">
-            @for (m of inputModes; track m.value) {
-              <button
-                class="seg-btn"
-                [class.active]="settings().inputMode === m.value"
-                (click)="set('inputMode', m.value)"
-              >{{ m.label }}</button>
-            }
-          </div>
+          <button
+            class="toggle-btn"
+            [class.on]="settings().scanAutoStart"
+            (click)="set('scanAutoStart', !settings().scanAutoStart)"
+            [attr.aria-pressed]="settings().scanAutoStart"
+            [attr.aria-label]="'Start scanning automatically ' + (settings().scanAutoStart ? 'on' : 'off')"
+          >
+            <div class="toggle-thumb"></div>
+          </button>
         </div>
 
-        @if (settings().inputMode === 'scan') {
-          <div class="setting-row sub-row">
-            <div class="setting-info">
-              <div class="setting-label">Scan speed</div>
-              <div class="setting-desc">How long each row or item is highlighted before moving on.</div>
-            </div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="600" max="3000" step="100"
-                [value]="settings().scanSpeedMs"
-                (input)="onRange($event, 'scanSpeedMs')" />
-              <span class="slider-val">{{ (settings().scanSpeedMs / 1000).toFixed(1) }}s</span>
-            </div>
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">Scan speed</div>
+            <div class="setting-desc">How long each row or item is highlighted before moving on.</div>
           </div>
-        }
-
-        @if (settings().inputMode === 'dwell') {
-          <div class="setting-row sub-row">
-            <div class="setting-info">
-              <div class="setting-label">Dwell time</div>
-              <div class="setting-desc">How long he must hold a target to select it.</div>
-            </div>
-            <div class="slider-wrap">
-              <input type="range" class="slider" min="500" max="4000" step="100"
-                [value]="settings().dwellMs"
-                (input)="onRange($event, 'dwellMs')" />
-              <span class="slider-val">{{ (settings().dwellMs / 1000).toFixed(1) }}s</span>
-            </div>
+          <div class="slider-wrap">
+            <input type="range" class="slider" min="600" max="3000" step="100"
+              [value]="settings().scanSpeedMs"
+              (input)="onRange($event, 'scanSpeedMs')" />
+            <span class="slider-val">{{ (settings().scanSpeedMs / 1000).toFixed(1) }}s</span>
           </div>
-        }
+        </div>
       </section>
 
       <!-- Layout -->
@@ -240,6 +225,30 @@ interface VoiceOption {
       color: var(--ink2);
       margin-top: 3px;
     }
+    .toggle-btn {
+      flex-shrink: 0;
+      width: 58px;
+      height: 32px;
+      border-radius: 999px;
+      background: var(--track);
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: background 0.2s;
+    }
+    .toggle-btn.on { background: var(--accent); }
+    .toggle-thumb {
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+      transition: transform 0.2s;
+    }
+    .toggle-btn.on .toggle-thumb { transform: translateX(26px); }
     .seg-ctrl {
       display: flex;
       gap: 5px;
@@ -339,12 +348,6 @@ export class AdminInputComponent implements OnInit {
   settings = computed(() => this.svc.state().settings);
   voices = signal<VoiceOption[]>([]);
 
-  readonly inputModes = [
-    { label: 'Direct', value: 'direct' as const },
-    { label: 'Scan', value: 'scan' as const },
-    { label: 'Dwell', value: 'dwell' as const },
-  ];
-
   readonly letterLayouts = [
     { label: 'A–Z', value: 'abc' as const },
     { label: 'Frequency', value: 'frequency' as const },
@@ -372,7 +375,7 @@ export class AdminInputComponent implements OnInit {
     this.svc.updateSettings({ [key]: value });
   }
 
-  onRange(event: Event, key: 'scanSpeedMs' | 'dwellMs'): void {
+  onRange(event: Event, key: 'scanSpeedMs'): void {
     const val = Number((event.target as HTMLInputElement).value);
     this.svc.updateSettings({ [key]: val });
   }

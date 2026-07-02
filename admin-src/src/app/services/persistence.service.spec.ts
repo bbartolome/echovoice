@@ -15,7 +15,7 @@ describe('PersistenceService integration', () => {
 
   it('writes settings changes to the ev-state localStorage key', async () => {
     const svc = TestBed.inject(PersistenceService);
-    svc.updateSettings({ theme: 'dark', showSpellingGrid: false, inputMode: 'scan' });
+    svc.updateSettings({ theme: 'dark', showSpellingGrid: false, scanAutoStart: true });
     flushEffects();
     await new Promise(r => setTimeout(r, 400)); // wait out the 300ms debounce
 
@@ -24,6 +24,6 @@ describe('PersistenceService integration', () => {
     const parsed = JSON.parse(raw!);
     expect(parsed.settings.theme).toBe('dark');
     expect(parsed.settings.showSpellingGrid).toBe(false);
-    expect(parsed.settings.inputMode).toBe('scan');
+    expect(parsed.settings.scanAutoStart).toBe(true);
   });
 });
