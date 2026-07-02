@@ -120,10 +120,6 @@ body[data-theme="dark"] { background: #000000; }
   display: flex; gap: 12px; align-items: stretch;
 }
 
-/* While the needs board is open, every row mirrors — the whole action column
-   moves to the left edge so it stays reachable without relearning positions. */
-#app.needs-open .comm-row { flex-direction: row-reverse; }
-
 /* ── Trailing action column ─────────────────────────────────────────────── */
 .row-action {
   width: 200px; flex-shrink: 0;
@@ -176,7 +172,7 @@ body[data-theme="dark"] { background: #000000; }
   box-shadow: 0 0 0 4px var(--scan), 0 0 0 11px var(--scan-tint);
 }
 .row-action.scan-item {
-  outline: 4px solid var(--scan); outline-offset: 3px;
+  box-shadow: 0 0 0 4px var(--scan), 0 0 0 11px var(--scan-tint);
 }
 
 /* ── Spelling grid keys ─────────────────────────────────────────────────── */

@@ -680,14 +680,13 @@ function render() {
   app.dataset.theme   = S.theme;
   app.dataset.density = S.density;
   document.body.dataset.theme = S.theme;
-  app.classList.toggle('needs-open', S.needsOpen);
 
   const rows = getRows();
 
   renderGridRows(rows);
   renderPredRow(rows[5]);
   renderMsgBar();
-  renderActions();
+  renderActions(rows);
   renderScanHighlights();
 }
 
@@ -804,7 +803,12 @@ function renderMsgBar() {
   el('btn-speak').onclick = () => speak(S.message);
 }
 
-function renderActions() {
+const ACTION_BUTTON_IDS = {
+  settings: 'btn-settings', clear: 'btn-clear', yes: 'btn-yes',
+  no: 'btn-no', scan: 'btn-scan', needs: 'btn-needs',
+};
+
+function renderActions(rows) {
   el('btn-yes').classList.toggle('spacer', !S.showYesNo);
   el('btn-no').classList.toggle('spacer', !S.showYesNo);
   el('btn-needs').classList.toggle('spacer', !S.showNeedsMenu);
@@ -822,6 +826,16 @@ function renderActions() {
   selectBtn.classList.toggle('live', S.scanning);
   selectBtn.querySelector('.act-glyph').textContent = S.scanning ? '●' : '⌫';
   selectBtn.querySelector('.act-label').textContent = S.scanning ? 'Select' : 'Backspace';
+
+  // An action button is the active scan item exactly when the item-phase
+  // index has walked past all of the row's content items — it's always
+  // appended last in scannableItems().
+  rows.forEach(row => {
+    if (!row.action || row.speakStop) return;
+    const btn = el(ACTION_BUTTON_IDS[row.action]);
+    if (!btn) return;
+    btn.classList.toggle('scan-item', isActiveScanItem(row.idx, row.items.length));
+  });
 }
 
 function renderScanHighlights() {
