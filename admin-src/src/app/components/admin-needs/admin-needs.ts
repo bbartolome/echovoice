@@ -122,6 +122,7 @@ import { NeedsNode } from '../../models/app-state.model';
     .topbar { display: flex; align-items: center; justify-content: space-between; }
     .back-link {
       display: inline-flex; align-items: center; gap: 6px;
+      min-height: 44px; padding: 0 4px;
       color: var(--accent); font-weight: 700; font-size: 17px; text-decoration: none;
     }
     .back-link:hover { text-decoration: underline; }

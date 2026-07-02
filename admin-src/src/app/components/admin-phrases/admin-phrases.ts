@@ -103,6 +103,8 @@ export class AutofocusDirective implements AfterViewInit {
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      min-height: 44px;
+      padding: 0 4px;
       color: var(--accent);
       font-weight: 700;
       font-size: 17px;

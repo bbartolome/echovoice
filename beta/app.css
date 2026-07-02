@@ -1,6 +1,13 @@
 /* ── Reset ──────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 button { font: inherit; border: none; cursor: pointer; touch-action: manipulation; }
+a { touch-action: manipulation; }
+
+/* Prevent child spans/glyphs from stealing pointer events from their parent interactive element.
+   Precise pointers (stylus, mouse) don't get the fat-finger hit-slop that touch does, so
+   e.target must be the interactive element itself, not a nested text node. */
+button > *, a > *,
+.needs-tile > *, .needs-other > *, .pred-slot > *, .key > * { pointer-events: none; }
 
 html, body {
   width: 100%; height: 100%;
@@ -225,7 +232,7 @@ body[data-theme="dark"] { background: #000000; }
   font-weight: 700; font-size: 28px; line-height: 1.12;
   color: var(--ink); text-align: center;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  overflow: hidden; word-break: break-word; pointer-events: none;
+  overflow: hidden; word-break: break-word;
 }
 .pred-text.phrase { font-size: 19px; }
 
@@ -273,7 +280,7 @@ body[data-theme="dark"] { background: #000000; }
 .key-label {
   position: relative; z-index: 2;
   font-weight: 700; font-size: 40px; line-height: 1;
-  color: var(--ink); pointer-events: none;
+  color: var(--ink);
 }
 .key-space .key-label {
   font-size: 17px; text-transform: uppercase;
@@ -357,8 +364,8 @@ body[data-theme="dark"] { background: #000000; }
 .needs-tile:active { opacity: 0.8; }
 .needs-tile.wide { grid-column: 1 / -1; }
 
-.tile-label { font-weight: 700; font-size: 30px; color: var(--ink); line-height: 1.05; pointer-events: none; }
-.tile-sub   { font-weight: 400; font-size: 18px; color: var(--ink2); pointer-events: none; }
+.tile-label { font-weight: 700; font-size: 30px; color: var(--ink); line-height: 1.05; }
+.tile-sub   { font-weight: 400; font-size: 18px; color: var(--ink2); }
 
 .needs-other {
   display: flex; align-items: center; gap: 16px;
@@ -367,8 +374,8 @@ body[data-theme="dark"] { background: #000000; }
   border: 2px dashed var(--dash); cursor: pointer; touch-action: manipulation;
 }
 .needs-other:active { background: var(--empty-bg); }
-.needs-other-label { font-weight: 700; font-size: 28px; color: var(--ink); pointer-events: none; }
-.needs-other-hint  { font-weight: 400; font-size: 18px; color: var(--ink2); pointer-events: none; }
+.needs-other-label { font-weight: 700; font-size: 28px; color: var(--ink); }
+.needs-other-hint  { font-weight: 400; font-size: 18px; color: var(--ink2); }
 
 /* ── Rail ───────────────────────────────────────────────────────────────── */
 #rail {
@@ -388,8 +395,7 @@ body[data-theme="dark"] { background: #000000; }
 .no  { background: var(--no); }
 .yes:active { filter: brightness(0.88); }
 .no:active  { filter: brightness(0.88); }
-.yn-glyph { font-size: 38px; line-height: 1; pointer-events: none; }
-.yn span   { pointer-events: none; }
+.yn-glyph { font-size: 38px; line-height: 1; }
 
 /* Quick phrases group */
 #quick-group {

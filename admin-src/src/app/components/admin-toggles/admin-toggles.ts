@@ -112,6 +112,10 @@ interface Toggle {
     }
     .page-header { display: flex; flex-direction: column; gap: 8px; }
     .back-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 4px;
       color: var(--accent);
       font-weight: 700;
       font-size: 17px;

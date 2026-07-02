@@ -97,6 +97,7 @@ import { PersistenceService } from '../../services/persistence.service';
       display: inline-flex;
       align-items: center;
       gap: 8px;
+      min-height: 44px;
       padding: 10px 18px;
       border-radius: 12px;
       background: var(--app-bg);

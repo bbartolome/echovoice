@@ -62,6 +62,12 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Precise pointers (stylus, mouse) don't get browser fat-finger hit-slop expansion.
+   Apply touch-action and neutralise child pointer-events globally so every interactive
+   element responds reliably regardless of input type. */
+button, a, [role="button"] { touch-action: manipulation; }
+button > *, a > *, [role="button"] > * { pointer-events: none; }
+
 html, body {
   height: 100%;
   background: var(--app-bg);
