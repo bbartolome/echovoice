@@ -790,10 +790,16 @@ function onSelectPress() {
 
   if (S.scanScope === 'view' && S.scanPhase === 'row') {
     S.scanRowIdx = Math.min(S.scanRowIdx, rows.length - 1);
-    S.scanPhase = 'item';
     S.scanItemIdx = 0;
-    advanceItem();
-    return;
+    // Descend into the row so its items can be scanned one at a time — but a
+    // single-item row (e.g. the lone "Other / Spell it out" tile) has nothing
+    // to choose between, so select it on this same press instead of making
+    // the user press once to descend and again to pick.
+    if (scannableItems(rows[S.scanRowIdx]).length > 1) {
+      S.scanPhase = 'item';
+      advanceItem();
+      return;
+    }
   }
 
   const rowIdx = S.scanScope === 'actions' ? 0 : Math.min(S.scanRowIdx, rows.length - 1);
