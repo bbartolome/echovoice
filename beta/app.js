@@ -79,7 +79,6 @@ const DEFAULT_NEEDS_TREE = [
 const EV_STATE_KEY = 'ev-state';
 
 const ADMIN_DEFAULTS = {
-  scanAutoStart:    false,
   scanSpeedMs:      1600,
   theme:            'light',
   letterLayout:     'abc',
@@ -105,9 +104,6 @@ function readAdminState() {
     const s = parsed.settings || {};
     const phraseObjs = parsed.quickPhrases;
     return {
-      // scanAutoStart is new in schemaVersion 2. Fall back to the old
-      // inputMode==='scan' setting so a v1 blob still autostarts correctly.
-      scanAutoStart:     s.scanAutoStart      != null ? !!s.scanAutoStart : s.inputMode === 'scan',
       scanSpeedMs:       s.scanSpeedMs       || ADMIN_DEFAULTS.scanSpeedMs,
       theme:             s.theme             || ADMIN_DEFAULTS.theme,
       letterLayout:      s.letterLayout      || ADMIN_DEFAULTS.letterLayout,
@@ -172,7 +168,6 @@ const S = {
   layout:       'abc',
   density:      'default',
   scanSpeedMs:  1600,
-  scanAutoStart: false,
   ttsVoiceName: '',
   ttsRate:      1.0,
   ttsPitch:     1.0,
@@ -182,23 +177,32 @@ const S = {
   showYesNo:    true,
   showNeedsMenu: true,
   quickPhrases: ['Please move me', 'Scratch my head', 'Thank you', 'One moment please', 'I love you'],
+  allPhrases:   ['Please move me', 'Scratch my head', 'Thank you', 'One moment please', 'I love you'],
   needsTree:    [],
   needsRootQuestion: 'What do you need?',
 
-  // Needs navigation: needsOpen toggles the board; needsPath is the stack of
-  // node ids drilled into (empty = root level); needsPage paginates a level
-  // with more than 8 tiles.
-  needsOpen:    false,
+  // Active view: which content rows 0-4 (and the predictions row) show.
+  activeView:   'spell',   // 'spell' | 'needs' | 'phrases'
+
+  // Board navigation. needsPath is the stack of node ids drilled into for
+  // the Needs tree (empty = root level); needsPage/phrasesPage paginate a
+  // board level with more than 8 tiles.
   needsPath:    [],
   needsPage:    0,
+  phrasesPage:  0,
 
-  // Scanning — runtime only, never persisted. scanAutoStart (above) is the
-  // only thing that survives to ev-state.
-  scanning:     false,
-  scanPhase:    'row',   // 'row' | 'item'
+  // Scanning — always on, runtime only, never persisted. scanScope controls
+  // how much of the layout the sweep covers: 'actions' sweeps just the
+  // bottom actions row; 'view' sweeps the active view's rows, the message
+  // row, and the actions row (in that order). scanResting is true when the
+  // sweep has parked after a few idle loops, waiting for the switch.
+  scanScope:    'actions',
+  scanPhase:    'item',   // 'row' | 'item' — 'row' only occurs in 'view' scope
   scanRowIdx:   0,
   scanItemIdx:  0,
   scanTimer:    null,
+  scanResting:  false,
+  scanLoops:    0,
 
   // Undo: message snapshots taken immediately before each insertion, so the
   // Backspace action button can undo a whole letter/word/phrase insertion
@@ -212,7 +216,6 @@ function applyAdminSettings() {
   S.layout       = a.letterLayout;
   S.density      = a.gridDensity;
   S.scanSpeedMs  = a.scanSpeedMs;
-  S.scanAutoStart = a.scanAutoStart;
   S.ttsVoiceName = a.ttsVoiceName;
   S.ttsRate      = a.ttsRate;
   S.ttsPitch     = a.ttsPitch;
@@ -222,13 +225,13 @@ function applyAdminSettings() {
   S.showYesNo    = a.showYesNo;
   S.showNeedsMenu     = a.showNeedsMenu;
   S.quickPhrases = a.quickPhrases;
+  S.allPhrases   = (a.allPhraseTexts && a.allPhraseTexts.length) ? a.allPhraseTexts : a.quickPhrases;
   S.needsTree    = a.needsTree;
   S.needsRootQuestion = a.needsRootQuestion;
-  if (!S.showNeedsMenu && S.needsOpen) {
-    S.needsOpen = false;
-    S.needsPath = [];
-    S.needsPage = 0;
-  }
+
+  if (S.activeView === 'needs' && !S.showNeedsMenu) closeToActions();
+  if (S.activeView === 'phrases' && !S.showQuickPhrases) closeToActions();
+
   if (window.Pred) Pred.setAdminData({
     personalWords: a.personalWords || [],
     phrases:       a.allPhraseTexts || a.quickPhrases,
@@ -438,36 +441,11 @@ function needsPageTiles() {
   return other ? [...nonOther, other] : nonOther.slice();
 }
 
-// Physical row 0 of the grid area becomes the (non-selectable) level header;
-// rows 1–4 hold up to 8 tiles, 2 per row, paginated 7-per-page + a More tile
-// once a level has more than 8 entries.
-function needsRowItems(rowIdx) {
-  if (rowIdx === 0) return [];
-  const tiles = needsPageTiles();
-  const paginated = tiles.length > 8;
-  const perPage = paginated ? 7 : tiles.length;
-  const start = S.needsPage * perPage;
-  let pageTiles = tiles.slice(start, start + perPage);
-  if (paginated) pageTiles = pageTiles.concat([{ __more: true }]);
-
-  const slotStart = (rowIdx - 1) * 2;
-  return pageTiles.slice(slotStart, slotStart + 2).map(t => {
-    if (t.__more) return { type: 'needs-more' };
-    const isLeaf = !(Array.isArray(t.children) && t.children.some(c => !c.isOther));
-    return { type: 'needs-tile', id: t.id, label: t.label, isOther: !!t.isOther, isLeaf };
-  });
-}
-
 function onNeedsTileSelect(tile) {
-  if (tile.isOther) {
-    S.needsOpen = false; S.needsPath = []; S.needsPage = 0;
-    render();
-    return;
-  }
+  if (tile.isOther) { openView('spell'); return; }
   if (tile.isLeaf) {
     speak(needsLabelsForPath([...(S.needsPath || []), tile.id]).join(' — '));
-    S.needsOpen = false; S.needsPath = []; S.needsPage = 0;
-    render();
+    closeToActions();
     return;
   }
   S.needsPath = [...(S.needsPath || []), tile.id];
@@ -475,23 +453,73 @@ function onNeedsTileSelect(tile) {
   render();
 }
 
-function toggleNeeds() {
-  if (!S.needsOpen) {
-    S.needsOpen = true; S.needsPath = []; S.needsPage = 0;
-  } else if ((S.needsPath || []).length > 0) {
-    S.needsPath = S.needsPath.slice(0, -1); S.needsPage = 0;
-  } else {
-    S.needsOpen = false; S.needsPath = []; S.needsPage = 0;
+// ── Phrases board ────────────────────────────────────────────────────────
+// A flat tile board over the admin's full quick-phrase list, mirroring the
+// Needs board's tile/pagination mechanics but with no drilling — every tile
+// is a leaf except the trailing "Other" tile, which spells out.
+
+function onPhraseTileSelect(tile) {
+  if (tile.isOther) { openView('spell'); return; }
+  selectQuickPhrase(tile.label);
+  closeToActions();
+}
+
+// ── Board (Needs / Phrases) shared tile/pagination model ──────────────────
+
+function boardTiles() {
+  if (S.activeView === 'phrases') {
+    const texts = (S.allPhrases && S.allPhrases.length) ? S.allPhrases : S.quickPhrases;
+    return texts
+      .map((text, i) => ({ id: `phrase-${i}`, label: text, isOther: false, isLeaf: true }))
+      .concat([{ id: 'phrases-other', label: 'Other', isOther: true, isLeaf: true }]);
   }
-  render();
+  return needsPageTiles();
+}
+
+function boardPage() {
+  return S.activeView === 'phrases' ? S.phrasesPage : S.needsPage;
+}
+
+function onBoardTileSelect(tile) {
+  if (S.activeView === 'phrases') onPhraseTileSelect(tile);
+  else onNeedsTileSelect(tile);
+}
+
+// Physical row 0 of the view area becomes the (non-selectable) board header;
+// rows 1–4 hold up to 8 tiles, 2 per row, paginated 7-per-page + a More tile
+// once a level has more than 8 entries.
+function boardRowItems(rowIdx) {
+  if (rowIdx === 0) return [];
+  const tiles = boardTiles();
+  const paginated = tiles.length > 8;
+  const perPage = paginated ? 7 : tiles.length;
+  const start = boardPage() * perPage;
+  let pageTiles = tiles.slice(start, start + perPage);
+  if (paginated) pageTiles = pageTiles.concat([{ __more: true }]);
+
+  const slotStart = (rowIdx - 1) * 2;
+  return pageTiles.slice(slotStart, slotStart + 2).map(t => {
+    if (t.__more) return { type: 'tile-more' };
+    const isLeaf = t.isLeaf != null
+      ? t.isLeaf
+      : !(Array.isArray(t.children) && t.children.some(c => !c.isOther));
+    return { type: 'tile', id: t.id, label: t.label, isOther: !!t.isOther, isLeaf };
+  });
+}
+
+function boardHeaderText() {
+  if (S.activeView === 'phrases') return 'Quick phrases';
+  const { parentLabel } = needsLevel();
+  const atRoot = (S.needsPath || []).length === 0;
+  return atRoot ? (S.needsRootQuestion || 'What do you need?') : (parentLabel || '');
 }
 
 // ── Row model ────────────────────────────────────────────────────────────
 // Single source of truth for rendering, direct taps, and scanning. Rows 0–4
-// carry the spelling grid (or, while the needs board is open, the needs
-// header/tiles); row 5 carries predictions/quick phrases; row 6 is the
-// message bar. Every row but the message bar pairs its content with a
-// trailing action button.
+// carry the active view's content (spelling grid, or a Needs/Phrases board);
+// the predictions row only appears in the Spell view; the message row and
+// the actions row always appear last, in that order — this is what lets the
+// actions row double as "back to actions" when a view's sweep reaches it.
 
 function gridRowItems(rowIdx) {
   if (!S.showSpellingGrid) return [];
@@ -500,52 +528,54 @@ function gridRowItems(rowIdx) {
 
 function predRowItems() {
   if (!S.showPredictionRow) return [];
-  const hasMsg = S.message.length > 0;
-  if (!hasMsg && S.showQuickPhrases && S.quickPhrases.length) {
-    return S.quickPhrases.slice(0, 5).map(text => ({ type: 'quick', text }));
-  }
   return (S.predictions || []).map(text => ({ type: 'pred', text }));
 }
 
+function actionsRowItems() {
+  const items = [];
+  if (S.showYesNo) items.push({ type: 'action', name: 'yes' }, { type: 'action', name: 'no' });
+  if (S.showNeedsMenu) items.push({ type: 'action', name: 'needs' });
+  if (S.showQuickPhrases) items.push({ type: 'action', name: 'phrases' });
+  if (S.showSpellingGrid) items.push({ type: 'action', name: 'spell' });
+  return items;
+}
+
 function getRows() {
-  const actions = ['settings', 'clear', 'yes', 'no', 'scan'];
   const rows = [];
   for (let i = 0; i <= 4; i++) {
     rows.push({
+      key: `view-${i}`,
       idx: i,
       contentId: `grid-r${i}`,
-      isHeader: S.needsOpen && i === 0,
-      items: S.needsOpen ? needsRowItems(i) : gridRowItems(i),
-      action: actions[i],
+      isHeader: S.activeView !== 'spell' && i === 0,
+      items: S.activeView === 'spell' ? gridRowItems(i) : boardRowItems(i),
     });
   }
-  rows.push({ idx: 5, contentId: 'pred-row', items: predRowItems(), action: 'needs' });
-  rows.push({ idx: 6, contentId: 'msg-bar', items: [], action: 'select', speakStop: true });
+  if (S.activeView === 'spell') {
+    rows.push({ key: 'pred', contentId: 'pred-row', items: predRowItems() });
+  }
+  rows.push({ key: 'msg', items: [
+    { type: 'msg-backspace' },
+    { type: 'msg-speak' },
+    { type: 'msg-clear' },
+  ] });
+  rows.push({ key: 'actions', items: actionsRowItems() });
   return rows;
 }
 
-function actionVisible(name) {
-  if (name === 'yes' || name === 'no') return S.showYesNo;
-  if (name === 'needs') return S.showNeedsMenu;
-  return true; // settings, clear, scan, select
-}
-
-// Settings is direct-tap only (a caregiver control); Select is the scan
-// actuator itself. Neither is ever a scannable target.
-function actionScannable(name) {
-  return name !== 'settings' && name !== 'select' && actionVisible(name);
-}
-
 function scannableItems(row) {
-  const list = (row.items || []).slice();
-  if (row.action && actionScannable(row.action)) list.push({ type: 'action', name: row.action });
-  return list;
+  return row.items || [];
 }
 
 // Rows with nothing selectable drop out of the sweep entirely — this is what
-// makes every show*/needs combination "just work" without special-casing.
+// makes every show*/needs combination "just work" without special-casing. In
+// 'actions' scope only the actions row is ever swept.
 function scanRows() {
-  return getRows().filter(row => row.speakStop || scannableItems(row).length > 0);
+  const rows = getRows();
+  if (S.scanScope === 'actions') {
+    return rows.filter(r => r.key === 'actions' && scannableItems(r).length > 0);
+  }
+  return rows.filter(r => scannableItems(r).length > 0);
 }
 
 // ── Selection dispatch ──────────────────────────────────────────────────
@@ -560,15 +590,22 @@ function selectItem(item) {
       if (item.text.includes(' ')) appendPhrase(item.text);
       else appendWord(item.text);
       break;
-    case 'quick':
-      selectQuickPhrase(item.text);
+    case 'tile':
+      onBoardTileSelect(item);
       break;
-    case 'needs-tile':
-      onNeedsTileSelect(item);
-      break;
-    case 'needs-more':
-      S.needsPage += 1;
+    case 'tile-more':
+      if (S.activeView === 'phrases') S.phrasesPage += 1;
+      else S.needsPage += 1;
       render();
+      break;
+    case 'msg-backspace':
+      undoInsertion();
+      break;
+    case 'msg-speak':
+      speak(S.message);
+      break;
+    case 'msg-clear':
+      clearAll();
       break;
     case 'action':
       runAction(item.name);
@@ -578,41 +615,131 @@ function selectItem(item) {
 
 function runAction(name) {
   switch (name) {
-    case 'clear': clearAll(); break;
-    case 'yes':   speak('Yes'); break;
-    case 'no':    speak('No'); break;
-    case 'scan':  if (S.scanning) stopScan(); else startScan(); break;
-    case 'needs': toggleNeeds(); break;
+    case 'yes': speak('Yes'); break;
+    case 'no':  speak('No');  break;
+    case 'needs':
+      if (S.activeView !== 'needs') {
+        openView('needs');
+      } else if ((S.needsPath || []).length > 0) {
+        S.needsPath = S.needsPath.slice(0, -1);
+        S.needsPage = 0;
+        S.scanPhase = 'row';
+        S.scanRowIdx = 0;
+        S.scanItemIdx = 0;
+        resumeScan();
+      } else {
+        closeToActions();
+      }
+      break;
+    case 'phrases':
+      if (S.activeView !== 'phrases') openView('phrases');
+      else closeToActions();
+      break;
+    case 'spell':
+      openView('spell');
+      break;
     // 'settings' navigates via its own <a href>; 'select' is handled by its
-    // own click handler (onSelectPress or undoInsertion), not through here.
+    // own click handler (onSelectPress), not through here.
   }
+}
+
+// ── Views ────────────────────────────────────────────────────────────────
+// Switching views expands the scan into it; closing one collapses the scan
+// back to the actions-only scope with the Spell grid showing underneath.
+
+function openView(view) {
+  S.activeView = view;
+  S.needsPath = [];
+  S.needsPage = 0;
+  S.phrasesPage = 0;
+  S.scanScope = 'view';
+  S.scanResting = false;
+  S.scanLoops = 0;
+  S.scanPhase = 'row';
+  S.scanRowIdx = 0;
+  S.scanItemIdx = 0;
+  resumeScan();
+}
+
+function closeToActions() {
+  S.activeView = 'spell';
+  S.needsPath = [];
+  S.needsPage = 0;
+  S.phrasesPage = 0;
+  S.scanScope = 'actions';
+  S.scanResting = false;
+  S.scanLoops = 0;
+  S.scanPhase = 'item';
+  S.scanItemIdx = 0;
+  resumeScan();
 }
 
 // ── Scanning ─────────────────────────────────────────────────────────────
 const ITEM_SPEED_RATIO = 0.69;
+// Scanning never turns off — after this many idle loops with no input it
+// parks ("rests") instead. The switch (Select button / Space / Enter) wakes
+// it. A "loop" is the cursor wrapping back to the top of its scope: a
+// row-index wrap in 'view' scope, an item-index wrap in 'actions' scope.
+const REST_AFTER_LOOPS = 2;
 
+// (Re)starts the sweep from the top of the current scope. Used at init and
+// to wake the sweep from rest.
 function startScan() {
-  if (S.scanTimer) clearTimeout(S.scanTimer);
-  S.scanning = true;
-  S.scanPhase = 'row';
-  S.scanRowIdx = 0;
-  S.scanItemIdx = 0;
-  advanceRow();
+  S.scanResting = false;
+  S.scanLoops = 0;
+  if (S.scanScope === 'actions') {
+    S.scanPhase = 'item';
+    S.scanItemIdx = 0;
+  } else {
+    S.scanPhase = 'row';
+    S.scanRowIdx = 0;
+    S.scanItemIdx = 0;
+  }
+  resumeScan();
 }
 
-function stopScan() {
-  if (S.scanTimer) clearTimeout(S.scanTimer);
-  S.scanTimer = null;
-  S.scanning = false;
-  S.scanPhase = 'row';
+function enterRest() {
+  if (S.scanTimer) { clearTimeout(S.scanTimer); S.scanTimer = null; }
+  S.scanResting = true;
   render();
+}
+
+// Continues ticking from the current cursor (clamped) given S's current
+// scope/phase. Always clears any pending timer first, so it's safe to call
+// after any state mutation without worrying about stray duplicate timers.
+function resumeScan() {
+  if (S.scanTimer) { clearTimeout(S.scanTimer); S.scanTimer = null; }
+  const rows = scanRows();
+  if (!rows.length) { enterRest(); return; }
+  if (S.scanScope === 'actions') {
+    S.scanPhase = 'item';
+    S.scanItemIdx = Math.min(S.scanItemIdx, rows[0].items.length - 1);
+    advanceItem();
+    return;
+  }
+  S.scanRowIdx = Math.min(S.scanRowIdx, rows.length - 1);
+  if (S.scanPhase === 'item') {
+    const items = scannableItems(rows[S.scanRowIdx]);
+    S.scanItemIdx = Math.min(S.scanItemIdx, items.length - 1);
+    advanceItem();
+  } else {
+    advanceRow();
+  }
 }
 
 function advanceRow() {
   render();
   S.scanTimer = setTimeout(() => {
     const rows = scanRows();
-    S.scanRowIdx = (S.scanRowIdx + 1) % rows.length;
+    if (!rows.length) { enterRest(); return; }
+    const next = S.scanRowIdx + 1;
+    if (next >= rows.length) {
+      S.scanRowIdx = 0;
+      S.scanLoops += 1;
+      if (S.scanLoops >= REST_AFTER_LOOPS) { enterRest(); return; }
+    } else {
+      S.scanRowIdx = next;
+    }
     advanceRow();
   }, S.scanSpeedMs);
 }
@@ -622,6 +749,22 @@ function advanceItem() {
   const itemMs = Math.round(S.scanSpeedMs * ITEM_SPEED_RATIO);
   S.scanTimer = setTimeout(() => {
     const rows = scanRows();
+    if (!rows.length) { enterRest(); return; }
+
+    if (S.scanScope === 'actions') {
+      const items = scannableItems(rows[0]);
+      const next = S.scanItemIdx + 1;
+      if (next >= items.length) {
+        S.scanItemIdx = 0;
+        S.scanLoops += 1;
+        if (S.scanLoops >= REST_AFTER_LOOPS) { enterRest(); return; }
+      } else {
+        S.scanItemIdx = next;
+      }
+      advanceItem();
+      return;
+    }
+
     const row = rows[Math.min(S.scanRowIdx, rows.length - 1)];
     const items = scannableItems(row);
     S.scanItemIdx += 1;
@@ -636,42 +779,54 @@ function advanceItem() {
 }
 
 // The scan actuator — fired by the Select button, physical Space, or Enter.
+// While resting, any press just wakes the sweep (it never also selects).
 function onSelectPress() {
-  if (!S.scanning) return;
-  if (S.scanTimer) clearTimeout(S.scanTimer);
+  if (S.scanResting) { startScan(); return; }
+  if (S.scanTimer) { clearTimeout(S.scanTimer); S.scanTimer = null; }
+  S.scanLoops = 0;
 
   const rows = scanRows();
-  S.scanRowIdx = Math.min(S.scanRowIdx, rows.length - 1);
-  const row = rows[S.scanRowIdx];
+  if (!rows.length) { enterRest(); return; }
 
-  if (row.speakStop) {
-    speak(S.message);
-    S.scanPhase = 'row';
-    advanceRow();
-    return;
-  }
-
-  if (S.scanPhase === 'row') {
+  if (S.scanScope === 'view' && S.scanPhase === 'row') {
+    S.scanRowIdx = Math.min(S.scanRowIdx, rows.length - 1);
     S.scanPhase = 'item';
     S.scanItemIdx = 0;
     advanceItem();
-  } else {
-    const items = scannableItems(row);
-    const item = items[S.scanItemIdx];
-    selectItem(item);
-    if (!S.scanning) return; // Pause was selected — stopScan() already ran
-    S.scanPhase = 'row';
-    const freshRows = scanRows();
-    S.scanRowIdx = Math.min(S.scanRowIdx, freshRows.length - 1);
-    advanceRow();
+    return;
   }
+
+  const rowIdx = S.scanScope === 'actions' ? 0 : Math.min(S.scanRowIdx, rows.length - 1);
+  const row = rows[rowIdx];
+  const items = scannableItems(row);
+  const item = items[Math.min(S.scanItemIdx, items.length - 1)];
+
+  const scopeBefore = S.scanScope;
+  selectItem(item);
+
+  if (S.scanScope === scopeBefore) {
+    // Selection didn't change the active view/scope (a letter, a
+    // prediction, Yes/No, a needs-category drill, Backspace/Speak/Clear,
+    // or a More tile) — openView()/closeToActions() already reset phase and
+    // indices for the cases that do change scope, so this only needs to
+    // return a 'view' sweep to row phase, or step the 'actions' sweep on.
+    if (S.scanScope === 'view') {
+      S.scanPhase = 'row';
+    } else {
+      const stillItems = scannableItems(scanRows()[0] || { items: [] });
+      S.scanItemIdx = stillItems.length ? (S.scanItemIdx + 1) % stillItems.length : 0;
+    }
+  }
+
+  resumeScan();
 }
 
-function isActiveScanItem(rowIdx, itemIdx) {
-  if (!S.scanning || S.scanPhase !== 'item') return false;
+function isActiveScanItem(rowKey, itemIdx) {
+  if (S.scanResting || S.scanPhase !== 'item') return false;
   const rows = scanRows();
-  const row = rows[S.scanRowIdx];
-  return !!row && row.idx === rowIdx && S.scanItemIdx === itemIdx;
+  const rowIdx = S.scanScope === 'actions' ? 0 : S.scanRowIdx;
+  const row = rows[rowIdx];
+  return !!row && row.key === rowKey && S.scanItemIdx === itemIdx;
 }
 
 // ── Rendering ────────────────────────────────────────────────────────────
@@ -679,14 +834,18 @@ function render() {
   const app = el('app');
   app.dataset.theme   = S.theme;
   app.dataset.density = S.density;
+  app.dataset.view    = S.activeView;
   document.body.dataset.theme = S.theme;
 
   const rows = getRows();
+  const predRow = rows.find(r => r.key === 'pred');
+  const actionsRow = rows.find(r => r.key === 'actions');
 
-  renderGridRows(rows);
-  renderPredRow(rows[5]);
+  renderViewRows(rows);
+  renderPredRow(predRow);
   renderMsgBar();
-  renderActions(rows);
+  renderMsgRowChrome();
+  renderActions(actionsRow);
   renderScanHighlights();
 }
 
@@ -711,7 +870,7 @@ function buildKeyEl(item, isActive) {
   return keyEl;
 }
 
-function buildNeedsTileEl(item, isActive) {
+function buildTileEl(item, isActive) {
   const tileEl = document.createElement('div');
   let cls = 'needs-tile';
   if (item.isOther) cls += ' is-other';
@@ -724,15 +883,15 @@ function buildNeedsTileEl(item, isActive) {
   return tileEl;
 }
 
-function buildNeedsMoreEl(isActive) {
+function buildMoreEl(isActive) {
   const moreEl = document.createElement('div');
   moreEl.className = 'needs-tile is-more' + (isActive ? ' scan-item' : '');
   moreEl.innerHTML = `<span class="tile-label">More</span><span class="tile-sub">›</span>`;
-  moreEl.addEventListener('pointerup', e => { e.preventDefault(); selectItem({ type: 'needs-more' }); });
+  moreEl.addEventListener('pointerup', e => { e.preventDefault(); selectItem({ type: 'tile-more' }); });
   return moreEl;
 }
 
-function renderGridRows(rows) {
+function renderViewRows(rows) {
   for (let i = 0; i <= 4; i++) {
     const row = rows[i];
     const container = el(row.contentId);
@@ -741,18 +900,16 @@ function renderGridRows(rows) {
     if (row.isHeader) {
       const hdr = document.createElement('div');
       hdr.className = 'needs-header';
-      const { parentLabel } = needsLevel();
-      const atRoot = (S.needsPath || []).length === 0;
-      hdr.textContent = atRoot ? (S.needsRootQuestion || 'What do you need?') : (parentLabel || '');
+      hdr.textContent = boardHeaderText();
       container.appendChild(hdr);
       continue;
     }
 
     row.items.forEach((item, k) => {
-      const isActive = isActiveScanItem(row.idx, k);
+      const isActive = isActiveScanItem(row.key, k);
       if (item.type === 'key') container.appendChild(buildKeyEl(item, isActive));
-      else if (item.type === 'needs-tile') container.appendChild(buildNeedsTileEl(item, isActive));
-      else if (item.type === 'needs-more') container.appendChild(buildNeedsMoreEl(isActive));
+      else if (item.type === 'tile') container.appendChild(buildTileEl(item, isActive));
+      else if (item.type === 'tile-more') container.appendChild(buildMoreEl(isActive));
     });
   }
 }
@@ -760,9 +917,10 @@ function renderGridRows(rows) {
 function renderPredRow(row) {
   const container = el('pred-row');
   container.innerHTML = '';
+  if (!row) return;
   for (let i = 0; i < 5; i++) {
     const item = row.items[i];
-    const isActive = isActiveScanItem(row.idx, i);
+    const isActive = isActiveScanItem('pred', i);
     const slot = document.createElement('div');
     const filled = !!item;
     let cls = `pred-slot ${filled ? 'filled' : 'empty'}`;
@@ -803,49 +961,65 @@ function renderMsgBar() {
   el('btn-speak').onclick = () => speak(S.message);
 }
 
+// The message row descends into three items when swept: Backspace, the
+// message itself (select = speak), then Clear.
+function renderMsgRowChrome() {
+  el('btn-backspace').classList.toggle('scan-item', isActiveScanItem('msg', 0));
+  el('msg-bar').classList.toggle('scan-item', isActiveScanItem('msg', 1));
+  el('btn-clear').classList.toggle('scan-item', isActiveScanItem('msg', 2));
+}
+
 const ACTION_BUTTON_IDS = {
-  settings: 'btn-settings', clear: 'btn-clear', yes: 'btn-yes',
-  no: 'btn-no', scan: 'btn-scan', needs: 'btn-needs',
+  yes: 'btn-yes', no: 'btn-no', needs: 'btn-needs', phrases: 'btn-phrases', spell: 'btn-spell',
 };
 
-function renderActions(rows) {
+function renderActions(row) {
   el('btn-yes').classList.toggle('spacer', !S.showYesNo);
   el('btn-no').classList.toggle('spacer', !S.showYesNo);
   el('btn-needs').classList.toggle('spacer', !S.showNeedsMenu);
-
-  const scanBtn = el('btn-scan');
-  scanBtn.classList.toggle('scanning', S.scanning);
-  scanBtn.querySelector('.act-label').textContent = S.scanning ? 'Pause' : 'Scan';
+  el('btn-phrases').classList.toggle('spacer', !S.showQuickPhrases);
+  el('btn-spell').classList.toggle('spacer', !S.showSpellingGrid);
 
   const needsBtn = el('btn-needs');
+  const needsOpen = S.activeView === 'needs';
   const drilled = (S.needsPath || []).length > 0;
-  needsBtn.querySelector('.act-label').textContent = !S.needsOpen ? 'Needs' : (drilled ? 'Back' : 'Close');
-  needsBtn.querySelector('.act-glyph').textContent = !S.needsOpen ? '▶' : (drilled ? '‹' : '✕');
+  needsBtn.querySelector('.act-label').textContent = !needsOpen ? 'Needs' : (drilled ? 'Back' : 'Close');
+  needsBtn.querySelector('.act-glyph').textContent = !needsOpen ? '▶' : (drilled ? '‹' : '✕');
+
+  const phrasesBtn = el('btn-phrases');
+  const phrasesOpen = S.activeView === 'phrases';
+  phrasesBtn.querySelector('.act-label').textContent = phrasesOpen ? 'Close' : 'Phrases';
+  phrasesBtn.querySelector('.act-glyph').textContent = phrasesOpen ? '✕' : '❝';
 
   const selectBtn = el('btn-select');
-  selectBtn.classList.toggle('live', S.scanning);
-  selectBtn.querySelector('.act-glyph').textContent = S.scanning ? '●' : '⌫';
-  selectBtn.querySelector('.act-label').textContent = S.scanning ? 'Select' : 'Backspace';
+  const active = !S.scanResting;
+  selectBtn.classList.toggle('live', active);
+  selectBtn.querySelector('.act-glyph').textContent = active ? '●' : '▶';
+  selectBtn.querySelector('.act-label').textContent = active ? 'Select' : 'Scan';
 
-  // An action button is the active scan item exactly when the item-phase
-  // index has walked past all of the row's content items — it's always
-  // appended last in scannableItems().
-  rows.forEach(row => {
-    if (!row.action || row.speakStop) return;
-    const btn = el(ACTION_BUTTON_IDS[row.action]);
+  const items = row ? row.items : [];
+  items.forEach((item, k) => {
+    if (item.type !== 'action') return;
+    const btn = el(ACTION_BUTTON_IDS[item.name]);
     if (!btn) return;
-    btn.classList.toggle('scan-item', isActiveScanItem(row.idx, row.items.length));
+    btn.classList.toggle('scan-item', isActiveScanItem('actions', k));
   });
+}
+
+function rowElementId(row) {
+  if (row.key === 'pred') return 'row-pred';
+  if (row.key === 'msg') return 'row-msg';
+  if (row.key === 'actions') return 'row-actions';
+  return `row-${row.idx}`;
 }
 
 function renderScanHighlights() {
   document.querySelectorAll('.scan-row-active').forEach(rowEl => rowEl.classList.remove('scan-row-active'));
-  if (!S.scanning || S.scanPhase !== 'row') return;
+  if (S.scanResting || S.scanPhase !== 'row' || S.scanScope !== 'view') return;
   const rows = scanRows();
   const active = rows[S.scanRowIdx];
   if (!active) return;
-  if (active.speakStop) el('msg-bar').classList.add('scan-row-active');
-  else el(`row-${active.idx}`).classList.add('scan-row-active');
+  el(rowElementId(active)).classList.add('scan-row-active');
 }
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
@@ -884,41 +1058,35 @@ function init() {
 
   if (S.restoredDraft) {
     setTimeout(() => {
-      if (S.restoredDraft) { S.restoredDraft = false; renderMsgBar(); }
+      if (S.restoredDraft) { S.restoredDraft = false; renderMsgBar(); renderMsgRowChrome(); }
     }, 3000);
   }
 
   // Static action buttons
-  el('btn-clear').onclick  = () => runAction('clear');
-  el('btn-yes').onclick    = () => runAction('yes');
-  el('btn-no').onclick     = () => runAction('no');
-  el('btn-scan').onclick   = () => runAction('scan');
-  el('btn-needs').onclick  = () => runAction('needs');
-  el('btn-select').onclick = () => { if (S.scanning) onSelectPress(); else undoInsertion(); };
+  el('btn-backspace').onclick = () => undoInsertion();
+  el('btn-clear').onclick     = () => clearAll();
+  el('btn-yes').onclick       = () => runAction('yes');
+  el('btn-no').onclick        = () => runAction('no');
+  el('btn-needs').onclick     = () => runAction('needs');
+  el('btn-phrases').onclick   = () => runAction('phrases');
+  el('btn-spell').onclick     = () => runAction('spell');
+  el('btn-select').onclick    = () => onSelectPress();
   // btn-settings is a plain <a href="./admin/"> — no handler needed.
 
-  // Physical keyboard
+  // Physical keyboard. Space/Enter are the switch actuator (scanning is
+  // always on), so a physical space bar no longer inserts a literal space —
+  // the on-screen space key is unaffected.
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (S.scanning) {
-      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onSelectPress(); }
-      else if (e.key === 'Escape') { e.preventDefault(); clearAll(); }
-      return;
-    }
-    if (e.key === 'Backspace')      { e.preventDefault(); clearLast(); return; }
-    if (e.key === 'Escape')         { e.preventDefault(); clearAll();  return; }
-    if (e.key === 'Enter')          { e.preventDefault(); speak(S.message); return; }
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onSelectPress(); return; }
+    if (e.key === 'Escape')    { e.preventDefault(); clearAll();  return; }
+    if (e.key === 'Backspace') { e.preventDefault(); clearLast(); return; }
     if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) appendChar(e.key);
   });
 
-  // Re-apply admin settings. Scanning only auto-starts on a false→true
-  // scanAutoStart transition, so an unrelated admin edit (e.g. TTS pitch)
-  // never restarts a scan the user deliberately paused.
   function refreshFromAdminState() {
     _ttsVoiceCache = null; // invalidate voice cache
-    const hadAutoStart = S.scanAutoStart;
     applyAdminSettings();
-    if (!hadAutoStart && S.scanAutoStart && !S.scanning) startScan();
     render();
   }
 
@@ -933,7 +1101,7 @@ function init() {
     if (e.persisted) refreshFromAdminState();
   });
 
-  if (S.scanAutoStart) startScan();
+  startScan();
 }
 
 // Block iOS double-tap-to-zoom

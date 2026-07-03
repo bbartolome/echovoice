@@ -54,19 +54,20 @@ The vanilla comm view and the Angular admin share settings via a single `localSt
 
 - The admin is the **only** writer via `PersistenceService` — the comm view is read-only on `ev-state`.
 - The comm view reads on init and listens for `storage` events to live-update.
-- Current shape is `schemaVersion: 2`. `settings.scanAutoStart` (bool) replaced the old `inputMode`/`dwellMs`/`targetSize` fields; `migrateState()` in `app-state.model.ts` maps a v1 `inputMode === 'scan'` to `scanAutoStart: true` and drops the rest.
+- Current shape is `schemaVersion: 2`. `settings.scanAutoStart` (bool) replaced the old `inputMode`/`dwellMs`/`targetSize` fields; `migrateState()` in `app-state.model.ts` maps a v1 `inputMode === 'scan'` to `scanAutoStart: true` and drops the rest. `scanAutoStart` is deprecated — the beta comm view scans always-on and ignores it, but the field stays in the schema (no v3 bump yet) because the root (production) comm view still reads it as a fallback until beta is promoted.
 - The draft message uses a separate `ev-draft` key (owned by the comm view).
 
 ## Architecture: comm view (beta/)
 
 - **Fixed canvas**: `#app` is always 1180 × 820 px (landscape).
-- **8-row scan layout**: rows 1–5 are the spelling grid, row 6 is predictions/quick phrases, row 7 is the message bar, row 8 is a static footer. Rows 1–6 each pair their content with a trailing action button (Settings, Clear, Yes, No, Scan/Pause, Needs) so every action is reachable by row-column scanning; the column is a fixed width so the six buttons line up vertically. Row 7's trailing button is Select while scanning / Backspace when idle, and is never itself a scan target — it's the switch actuator. Row 8 is never scanned.
-- **Access mode**: Direct and Scan are merged — direct taps always work, and scanning (`S.scanning`) is a runtime toggle started from the Scan button or `settings.scanAutoStart`, never persisted mid-session. Dwell mode has been removed.
-- **Needs board**: opening it swaps rows 1–5's *content* for a header + tiles (via the same row model, `needsRowItems()`); the whole trailing action column mirrors to the left edge (`#app.needs-open`) while open.
+- **Layout**: rows 1–5 are the **view area** — content depends on `S.activeView` (`'spell'` shows the letter grid, `'needs'`/`'phrases'` show a header + tile board). A predictions row sits above the message row but only appears in the Spell view. The message row has the message bar (+ embedded Speak) flanked by standalone Backspace (left) and Clear (right) buttons. A single bottom **actions row** holds every action: Settings, Yes (green), No (red), Needs, Phrases, Spell, Select. Settings (a caregiver `<a href="./admin/">`) and Select (the switch actuator) are never scan targets; the other four are gated by their `show*` admin flags and render as spacers when off. A static footer is never scanned.
+- **Access mode**: direct taps always work everywhere regardless of scan state. Scanning is **always on** (no more Scan/Pause toggle or `settings.scanAutoStart` — that field is deprecated, see above) with an idle-rest: after `REST_AFTER_LOOPS` (2) full idle sweeps it parks (`S.scanResting`) and the Select button reads "Scan"; pressing Select/Space/Enter while resting just wakes it without also selecting.
+- **Scan scope**: `S.scanScope` is `'actions'` (sweeps only the actions row — the default on load) or `'view'` (sweeps the active view's rows, then the message row, then the actions row, so reaching the actions row while a view is open is how you get back out). Selecting Needs/Phrases/Spell calls `openView()`, expanding the scope into that view; speaking a Need/Phrase leaf, or picking "Other" (Needs/Phrases → Spell), or closing Needs/Phrases at the root calls `closeToActions()`, collapsing back to the actions-only scope with the Spell grid showing underneath. The Needs/Phrases actions-row buttons double as Back/Close while their view is open.
+- **Needs & Phrases boards**: both reuse the same generalized tile/pagination model (`boardTiles()`, `boardRowItems()`, up to 8 tiles per page, 2 per row, 7-per-page + "More" beyond 8). Needs walks the admin-defined tree (`S.needsTree`, drills via `S.needsPath`); Phrases is a flat list over the admin's full quick-phrase list (`S.allPhrases`) with no drilling. Both end in an "Other" tile that opens the Spell view to spell out.
 - **Scaling**: `scaleApp()` transforms the canvas to fit any viewport.
 - **Theme**: `data-theme` on `#app` and `<body>` drives light/dark tokens.
 - **Touch guard**: a global `touchend` listener prevents iOS double-tap zoom.
-- **State**: all mutable state lives in the `S` object in `app.js`. `render()` is called after every mutation. `getRows()` is the single source of truth for rendering, direct taps, and the scan sweep.
+- **State**: all mutable state lives in the `S` object in `app.js`. `render()` is called after every mutation. `getRows()` is the single source of truth for rendering, direct taps, and the scan sweep; `scanRows()` filters it down by the current `scanScope`.
 - **Admin settings** loaded on init via `applyAdminSettings()` → `readAdminState()`.
 
 ## Architecture: admin (admin-src/)

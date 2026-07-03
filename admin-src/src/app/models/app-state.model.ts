@@ -30,6 +30,7 @@ export interface DeviceHistory {
 }
 
 export interface Settings {
+  /** @deprecated Beta comm view now scans always-on and ignores this; the root (production) comm view still reads it as a fallback. Drop at schema v3 after beta is promoted. */
   scanAutoStart: boolean;
   scanSpeedMs: number;
   gridDensity: 'default' | 'large';

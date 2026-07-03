@@ -26,24 +26,8 @@ interface VoiceOption {
 
         <div class="setting-row">
           <div class="setting-info">
-            <div class="setting-label">Start scanning automatically</div>
-            <div class="setting-desc">Row scanning begins as soon as the communication screen opens. He can pause or restart it with the Scan button.</div>
-          </div>
-          <button
-            class="toggle-btn"
-            [class.on]="settings().scanAutoStart"
-            (click)="set('scanAutoStart', !settings().scanAutoStart)"
-            [attr.aria-pressed]="settings().scanAutoStart"
-            [attr.aria-label]="'Start scanning automatically ' + (settings().scanAutoStart ? 'on' : 'off')"
-          >
-            <div class="toggle-thumb"></div>
-          </button>
-        </div>
-
-        <div class="setting-row">
-          <div class="setting-info">
             <div class="setting-label">Scan speed</div>
-            <div class="setting-desc">How long each row or item is highlighted before moving on.</div>
+            <div class="setting-desc">Scanning is always on and rests after two idle sweeps; he wakes it with the Select switch. This controls how long each row or item is highlighted before moving on.</div>
           </div>
           <div class="slider-wrap">
             <input type="range" class="slider" min="600" max="3000" step="100"

@@ -92,8 +92,10 @@ body[data-theme="dark"] { background: #000000; }
 /* ── App frame — 1180×820 design. scaleApp() scales it to fit, then expands the
    canvas in whichever dimension has slack so it fills the viewport edge to
    edge (no letterboxing). Portrait rotates the whole thing 90°.
-   Eight stacked full-width rows, each ending in a trailing action button —
-   this is what makes every action reachable by row-column scanning. ────── */
+   Rows 1–5 are the view area (Spell grid, or a Needs/Phrases tile board),
+   predictions sit above the message row (Spell view only), and every action
+   lives on a single bottom actions row — this is what makes every action
+   reachable by scanning without pairing a button to every row. ─────────── */
 #app {
   width: 1180px; height: 820px;
   background: var(--app-bg);
@@ -110,19 +112,23 @@ body[data-theme="dark"] { background: #000000; }
   display: flex; gap: 12px; align-items: stretch;
   flex-shrink: 0;
 }
-/* Rows 1–5 (spelling grid) share the remaining vertical space equally */
+/* Rows 1–5 (view area) share the remaining vertical space equally */
 #row-0, #row-1, #row-2, #row-3, #row-4 { flex: 1 1 0; min-height: 0; }
-#row-5 { flex: 0 0 84px; }   /* predictions / quick phrases */
-#row-6 { flex: 0 0 128px; }  /* message bar */
+#row-pred    { flex: 0 0 76px; }   /* predictions — Spell view only */
+#row-msg     { flex: 0 0 116px; }  /* message bar + Backspace/Clear */
+#row-actions { flex: 0 0 92px; }   /* Settings/Yes/No/Needs/Phrases/Spell/Select */
+
+/* Predictions only make sense while spelling — reclaim the row when a
+   Needs/Phrases board is showing instead of the letter grid. */
+#app:not([data-view="spell"]) #row-pred { display: none; }
 
 .row-content {
   flex: 1 1 auto; min-width: 0;
   display: flex; gap: 12px; align-items: stretch;
 }
 
-/* ── Trailing action column ─────────────────────────────────────────────── */
-.row-action {
-  width: 200px; flex-shrink: 0;
+/* ── Side/action buttons ─────────────────────────────────────────────────── */
+.action-btn, .msg-side-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
   border-radius: 16px;
   background: var(--surface); border: 2px solid var(--hair);
@@ -132,8 +138,12 @@ body[data-theme="dark"] { background: #000000; }
   touch-action: manipulation;
   box-shadow: var(--shadow);
 }
-.row-action:active { filter: brightness(0.92); }
-.row-action.spacer { visibility: hidden; pointer-events: none; }
+.action-btn:active, .msg-side-btn:active { filter: brightness(0.92); }
+
+.action-btn { flex: 1 1 0; min-width: 0; }
+.action-btn.spacer { visibility: hidden; pointer-events: none; }
+
+.msg-side-btn { width: 170px; flex-shrink: 0; }
 
 .act-glyph { font-size: 28px; line-height: 1; }
 .act-label { font-size: 18px; letter-spacing: 0.2px; }
@@ -142,36 +152,32 @@ body[data-theme="dark"] { background: #000000; }
 .act-no   { background: var(--no);  border-color: var(--no);  color: #fff; }
 .act-yes:active, .act-no:active { filter: brightness(0.88); }
 
-.act-needs { background: var(--entry-bg); border-color: var(--entry-bdr); color: var(--accent); }
+.act-needs, .act-phrases, .act-spell { background: var(--entry-bg); border-color: var(--entry-bdr); color: var(--accent); }
 
 .act-settings { color: var(--ink2); }
 .act-settings:hover { border-color: var(--accent); color: var(--accent); }
 
-.act-scan.scanning  { background: var(--scan); border-color: var(--scan); color: #fff; }
-.act-select.live    { background: var(--scan); border-color: var(--scan); color: #fff; }
+.act-select.live { background: var(--scan); border-color: var(--scan); color: #fff; }
 
 /* ── Scan highlight ─────────────────────────────────────────────────────── */
-/* Row phase: outline the whole row (or, for the message row, just the
-   message + Speak — the trailing Select/Backspace button is the switch
-   actuator itself and is never a scan target). */
+/* Row phase: outline the whole row (view scope only — the actions-only
+   scope has no row phase, it highlights an action button directly). */
 .comm-row.scan-row-active {
   outline: 3px solid var(--scan);
   outline-offset: 6px;
   border-radius: 18px;
 }
-#msg-bar.scan-row-active {
-  outline: 3px solid var(--scan);
-  outline-offset: 4px;
-}
 
-/* Item phase: highlight the single active key / slot / tile / action button */
+/* Item phase: highlight the single active key / slot / tile / button */
 .key.scan-item,
 .pred-slot.scan-item,
 .needs-tile.scan-item {
   background: var(--scan-face); border-color: var(--scan);
   box-shadow: 0 0 0 4px var(--scan), 0 0 0 11px var(--scan-tint);
 }
-.row-action.scan-item {
+.action-btn.scan-item,
+.msg-side-btn.scan-item,
+#msg-bar.scan-item {
   box-shadow: 0 0 0 4px var(--scan), 0 0 0 11px var(--scan-tint);
 }
 
