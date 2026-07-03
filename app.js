@@ -79,11 +79,9 @@ const DEFAULT_NEEDS_TREE = [
 const EV_STATE_KEY = 'ev-state';
 
 const ADMIN_DEFAULTS = {
-  inputMode:        'direct',
   scanSpeedMs:      1600,
-  dwellMs:          1500,
   theme:            'light',
-  letterLayout:     'frequency',
+  letterLayout:     'abc',
   gridDensity:      'default',
   ttsVoiceName:     '',
   ttsRate:          1.0,
@@ -93,7 +91,7 @@ const ADMIN_DEFAULTS = {
   showQuickPhrases: true,
   showYesNo:        true,
   showNeedsMenu:    true,
-  quickPhrases:     ['Please move me', 'Scratch my head', 'Thank you', 'One moment'],
+  quickPhrases:     ['Please move me', 'Scratch my head', 'Thank you', 'One moment please', 'I love you'],
   needsTree:        DEFAULT_NEEDS_TREE,
   needsRootQuestion: 'What do you need?',
 };
@@ -106,15 +104,13 @@ function readAdminState() {
     const s = parsed.settings || {};
     const phraseObjs = parsed.quickPhrases;
     return {
-      inputMode:         s.inputMode        || ADMIN_DEFAULTS.inputMode,
-      scanSpeedMs:       s.scanSpeedMs      || ADMIN_DEFAULTS.scanSpeedMs,
-      dwellMs:           s.dwellMs          || ADMIN_DEFAULTS.dwellMs,
-      theme:             s.theme            || ADMIN_DEFAULTS.theme,
-      letterLayout:      s.letterLayout     || ADMIN_DEFAULTS.letterLayout,
-      gridDensity:       s.gridDensity      || ADMIN_DEFAULTS.gridDensity,
-      ttsVoiceName:      s.ttsVoiceName     || ADMIN_DEFAULTS.ttsVoiceName,
-      ttsRate:           s.ttsRate          != null ? s.ttsRate  : ADMIN_DEFAULTS.ttsRate,
-      ttsPitch:          s.ttsPitch         != null ? s.ttsPitch : ADMIN_DEFAULTS.ttsPitch,
+      scanSpeedMs:       s.scanSpeedMs       || ADMIN_DEFAULTS.scanSpeedMs,
+      theme:             s.theme             || ADMIN_DEFAULTS.theme,
+      letterLayout:      s.letterLayout      || ADMIN_DEFAULTS.letterLayout,
+      gridDensity:       s.gridDensity       || ADMIN_DEFAULTS.gridDensity,
+      ttsVoiceName:      s.ttsVoiceName      || ADMIN_DEFAULTS.ttsVoiceName,
+      ttsRate:           s.ttsRate           != null ? s.ttsRate  : ADMIN_DEFAULTS.ttsRate,
+      ttsPitch:          s.ttsPitch          != null ? s.ttsPitch : ADMIN_DEFAULTS.ttsPitch,
       showSpellingGrid:  s.showSpellingGrid  != null ? !!s.showSpellingGrid  : ADMIN_DEFAULTS.showSpellingGrid,
       showPredictionRow: s.showPredictionRow != null ? !!s.showPredictionRow : ADMIN_DEFAULTS.showPredictionRow,
       showQuickPhrases:  s.showQuickPhrases  != null ? !!s.showQuickPhrases  : ADMIN_DEFAULTS.showQuickPhrases,
@@ -125,7 +121,7 @@ function readAdminState() {
         : ADMIN_DEFAULTS.needsTree,
       needsRootQuestion: parsed.needsRootQuestion || ADMIN_DEFAULTS.needsRootQuestion,
       quickPhrases: Array.isArray(phraseObjs)
-        ? phraseObjs.slice(0, 4).map(p => p.text || p).filter(Boolean)
+        ? phraseObjs.slice(0, 5).map(p => p.text || p).filter(Boolean)
         : ADMIN_DEFAULTS.quickPhrases,
       allPhraseTexts: Array.isArray(phraseObjs)
         ? phraseObjs.map(p => p.text || p).filter(Boolean)
@@ -161,15 +157,6 @@ function migrateFromLegacy() {
   };
 }
 
-function saveSettingToAdminState(patch) {
-  try {
-    const raw = localStorage.getItem(EV_STATE_KEY);
-    const state = raw ? JSON.parse(raw) : { schemaVersion: 1, settings: {} };
-    state.settings = { ...state.settings, ...patch };
-    localStorage.setItem(EV_STATE_KEY, JSON.stringify(state));
-  } catch { /* storage unavailable */ }
-}
-
 // ── State ────────────────────────────────────────────────────────────────
 const S = {
   message:      '',
@@ -178,11 +165,9 @@ const S = {
 
   // Settings (populated from admin state on init and on storage events)
   theme:        'light',
-  layout:       'frequency',
+  layout:       'abc',
   density:      'default',
-  inputMode:    'direct',
   scanSpeedMs:  1600,
-  dwellMs:      1500,
   ttsVoiceName: '',
   ttsRate:      1.0,
   ttsPitch:     1.0,
@@ -191,25 +176,38 @@ const S = {
   showQuickPhrases:  true,
   showYesNo:    true,
   showNeedsMenu: true,
-  quickPhrases: ['Please move me', 'Scratch my head', 'Thank you', 'One moment'],
+  quickPhrases: ['Please move me', 'Scratch my head', 'Thank you', 'One moment please', 'I love you'],
+  allPhrases:   ['Please move me', 'Scratch my head', 'Thank you', 'One moment please', 'I love you'],
   needsTree:    [],
   needsRootQuestion: 'What do you need?',
 
-  // Needs navigation: needsOpen toggles the panel; needsPath is the stack of
-  // node ids the user has drilled into (empty = root level).
-  needsOpen:    false,
+  // Active view: which content rows 0-4 (and the predictions row) show.
+  activeView:   'spell',   // 'spell' | 'needs' | 'phrases'
+
+  // Board navigation. needsPath is the stack of node ids drilled into for
+  // the Needs tree (empty = root level); needsPage/phrasesPage paginate a
+  // board level with more than 8 tiles.
   needsPath:    [],
+  needsPage:    0,
+  phrasesPage:  0,
 
-  // Scanning
-  scanPhase:  'zone',
-  scanZone:   0,
-  scanItem:   0,
-  scanTimer:  null,
+  // Scanning — always on, runtime only, never persisted. scanScope controls
+  // how much of the layout the sweep covers: 'actions' sweeps just the
+  // bottom actions row; 'view' sweeps the active view's rows, the message
+  // row, and the actions row (in that order). scanResting is true when the
+  // sweep has parked after a few idle loops, waiting for the switch.
+  scanScope:    'actions',
+  scanPhase:    'item',   // 'row' | 'item' — 'row' only occurs in 'view' scope
+  scanRowIdx:   0,
+  scanItemIdx:  0,
+  scanTimer:    null,
+  scanResting:  false,
+  scanLoops:    0,
 
-  // Dwell
-  dwellEl:    null,
-  dwellRAF:   null,
-  dwellStart: null,
+  // Undo: message snapshots taken immediately before each insertion, so the
+  // Backspace action button can undo a whole letter/word/phrase insertion
+  // in one press instead of one character at a time.
+  undoStack:    [],
 };
 
 function applyAdminSettings() {
@@ -217,9 +215,7 @@ function applyAdminSettings() {
   S.theme        = a.theme;
   S.layout       = a.letterLayout;
   S.density      = a.gridDensity;
-  S.inputMode    = a.inputMode;
   S.scanSpeedMs  = a.scanSpeedMs;
-  S.dwellMs      = a.dwellMs;
   S.ttsVoiceName = a.ttsVoiceName;
   S.ttsRate      = a.ttsRate;
   S.ttsPitch     = a.ttsPitch;
@@ -229,8 +225,13 @@ function applyAdminSettings() {
   S.showYesNo    = a.showYesNo;
   S.showNeedsMenu     = a.showNeedsMenu;
   S.quickPhrases = a.quickPhrases;
+  S.allPhrases   = (a.allPhraseTexts && a.allPhraseTexts.length) ? a.allPhraseTexts : a.quickPhrases;
   S.needsTree    = a.needsTree;
   S.needsRootQuestion = a.needsRootQuestion;
+
+  if (S.activeView === 'needs' && !S.showNeedsMenu) closeToActions();
+  if (S.activeView === 'phrases' && !S.showQuickPhrases) closeToActions();
+
   if (window.Pred) Pred.setAdminData({
     personalWords: a.personalWords || [],
     phrases:       a.allPhraseTexts || a.quickPhrases,
@@ -246,7 +247,8 @@ function h(str) {
 
 function el(id) { return document.getElementById(id); }
 
-// Grid rows as arrays of key descriptors
+// Grid rows as arrays of key descriptors — 5 rows: four of 6 letters, then a
+// tail row of the 2 leftover letters + space (+ punctuation unless large density).
 function getGridRows() {
   const seq   = LAYOUTS[S.layout].split('');
   const large = S.density === 'large';
@@ -263,11 +265,6 @@ function getGridRows() {
   }
   rows.push(last);
   return rows;
-}
-
-// Scan zones: 0 = prediction row, 1..N = grid rows
-function scanZones() {
-  return [{ type: 'pred' }, ...getGridRows().map((_, i) => ({ type: 'row', rowIdx: i }))];
 }
 
 // ── Predictions ──────────────────────────────────────────────────────────
@@ -312,24 +309,49 @@ function speak(text) {
   window.speechSynthesis.speak(utt);
 }
 
+// ── Undo stack ───────────────────────────────────────────────────────────
+function pushUndo() {
+  S.undoStack.push(S.message);
+  if (S.undoStack.length > 100) S.undoStack.shift();
+}
+
+// Backspace action: undo the last insertion as a whole (a letter, a selected
+// word, or a selected phrase), falling back to a single-char delete once the
+// stack is empty (e.g. right after a draft restore).
+function undoInsertion() {
+  while (S.undoStack.length) {
+    const prev = S.undoStack.pop();
+    if (prev !== S.message) {
+      S.message = prev;
+      S.restoredDraft = false;
+      afterMessageChange();
+      return;
+    }
+  }
+  clearLast();
+}
+
 // ── Message mutations ────────────────────────────────────────────────────
 function appendChar(char) {
-  if (char === ' ') {
-    if (!S.message.endsWith(' ')) {
+  const isNoOpSpace = char === ' ' && S.message.endsWith(' ');
+  if (!isNoOpSpace) {
+    pushUndo();
+    if (char === ' ') {
       if (window.Pred) {
         const parts = S.message.trim().split(/\s+/).filter(Boolean);
         if (parts.length) Pred.commitWord(parts[parts.length - 2] || '', parts[parts.length - 1]);
       }
       S.message += ' ';
+    } else {
+      S.message += char;
     }
-  } else {
-    S.message += char;
   }
   S.restoredDraft = false;
   afterMessageChange();
 }
 
 function appendWord(word) {
+  pushUndo();
   const lastSpace = S.message.lastIndexOf(' ');
   if (lastSpace >= 0) {
     if (window.Pred) {
@@ -346,8 +368,19 @@ function appendWord(word) {
 }
 
 function appendPhrase(phrase) {
+  pushUndo();
   if (window.Pred) Pred.commitPhrase(phrase);
   S.message = phrase + ' ';
+  S.restoredDraft = false;
+  afterMessageChange();
+}
+
+// Quick phrase: replaces the message outright (not an append) and speaks
+// immediately, same as tapping Yes/No.
+function selectQuickPhrase(phrase) {
+  pushUndo();
+  S.message = phrase;
+  speak(phrase);
   S.restoredDraft = false;
   afterMessageChange();
 }
@@ -360,6 +393,7 @@ function clearLast() {
 }
 
 function clearAll() {
+  S.undoStack = [];
   if (!S.message) return;
   S.message = '';
   S.restoredDraft = false;
@@ -372,113 +406,433 @@ function afterMessageChange() {
   render();
 }
 
+// ── Needs board ──────────────────────────────────────────────────────────
+// Renders the admin-defined needs tree at any depth. A node with non-"Other"
+// children is a category (drills deeper); a node with none is a leaf (speaks
+// the full path and closes). "Other" at any level spells out.
+
+function needsLevel() {
+  let list = S.needsTree || [];
+  let parentLabel = null;
+  for (const id of (S.needsPath || [])) {
+    const node = (list || []).find(n => n.id === id);
+    if (node && Array.isArray(node.children)) { list = node.children; parentLabel = node.label; }
+    else { list = []; break; }
+  }
+  return { list, parentLabel };
+}
+
+function needsLabelsForPath(ids) {
+  const labels = [];
+  let list = S.needsTree || [];
+  for (const id of ids) {
+    const node = (list || []).find(n => n.id === id);
+    if (!node) break;
+    labels.push(node.label);
+    list = node.children || [];
+  }
+  return labels;
+}
+
+function needsPageTiles() {
+  const { list } = needsLevel();
+  const nonOther = (list || []).filter(n => !n.isOther);
+  const other = (list || []).find(n => n.isOther);
+  return other ? [...nonOther, other] : nonOther.slice();
+}
+
+function onNeedsTileSelect(tile) {
+  if (tile.isOther) { openView('spell'); return; }
+  if (tile.isLeaf) {
+    speak(needsLabelsForPath([...(S.needsPath || []), tile.id]).join(' — '));
+    closeToActions();
+    return;
+  }
+  S.needsPath = [...(S.needsPath || []), tile.id];
+  S.needsPage = 0;
+  render();
+}
+
+// ── Phrases board ────────────────────────────────────────────────────────
+// A flat tile board over the admin's full quick-phrase list, mirroring the
+// Needs board's tile/pagination mechanics but with no drilling — every tile
+// is a leaf except the trailing "Other" tile, which spells out.
+
+function onPhraseTileSelect(tile) {
+  if (tile.isOther) { openView('spell'); return; }
+  selectQuickPhrase(tile.label);
+  closeToActions();
+}
+
+// ── Board (Needs / Phrases) shared tile/pagination model ──────────────────
+
+function boardTiles() {
+  if (S.activeView === 'phrases') {
+    const texts = (S.allPhrases && S.allPhrases.length) ? S.allPhrases : S.quickPhrases;
+    return texts
+      .map((text, i) => ({ id: `phrase-${i}`, label: text, isOther: false, isLeaf: true }))
+      .concat([{ id: 'phrases-other', label: 'Other', isOther: true, isLeaf: true }]);
+  }
+  return needsPageTiles();
+}
+
+function boardPage() {
+  return S.activeView === 'phrases' ? S.phrasesPage : S.needsPage;
+}
+
+function onBoardTileSelect(tile) {
+  if (S.activeView === 'phrases') onPhraseTileSelect(tile);
+  else onNeedsTileSelect(tile);
+}
+
+// Physical row 0 of the view area becomes the (non-selectable) board header;
+// rows 1–4 hold up to 8 tiles, 2 per row, paginated 7-per-page + a More tile
+// once a level has more than 8 entries.
+function boardRowItems(rowIdx) {
+  if (rowIdx === 0) return [];
+  const tiles = boardTiles();
+  const paginated = tiles.length > 8;
+  const perPage = paginated ? 7 : tiles.length;
+  const start = boardPage() * perPage;
+  let pageTiles = tiles.slice(start, start + perPage);
+  if (paginated) pageTiles = pageTiles.concat([{ __more: true }]);
+
+  const slotStart = (rowIdx - 1) * 2;
+  return pageTiles.slice(slotStart, slotStart + 2).map(t => {
+    if (t.__more) return { type: 'tile-more' };
+    const isLeaf = t.isLeaf != null
+      ? t.isLeaf
+      : !(Array.isArray(t.children) && t.children.some(c => !c.isOther));
+    return { type: 'tile', id: t.id, label: t.label, isOther: !!t.isOther, isLeaf };
+  });
+}
+
+function boardHeaderText() {
+  if (S.activeView === 'phrases') return 'Quick phrases';
+  const { parentLabel } = needsLevel();
+  const atRoot = (S.needsPath || []).length === 0;
+  return atRoot ? (S.needsRootQuestion || 'What do you need?') : (parentLabel || '');
+}
+
+// ── Row model ────────────────────────────────────────────────────────────
+// Single source of truth for rendering, direct taps, and scanning. Rows 0–4
+// carry the active view's content (spelling grid, or a Needs/Phrases board);
+// the predictions row only appears in the Spell view; the message row and
+// the actions row always appear last, in that order — this is what lets the
+// actions row double as "back to actions" when a view's sweep reaches it.
+
+function gridRowItems(rowIdx) {
+  if (!S.showSpellingGrid) return [];
+  return getGridRows()[rowIdx].map(k => ({ type: 'key', char: k.char, kind: k.kind, label: k.label }));
+}
+
+function predRowItems() {
+  if (!S.showPredictionRow) return [];
+  return (S.predictions || []).map(text => ({ type: 'pred', text }));
+}
+
+function actionsRowItems() {
+  const items = [];
+  if (S.showYesNo) items.push({ type: 'action', name: 'yes' }, { type: 'action', name: 'no' });
+  if (S.showNeedsMenu) items.push({ type: 'action', name: 'needs' });
+  if (S.showQuickPhrases) items.push({ type: 'action', name: 'phrases' });
+  if (S.showSpellingGrid) items.push({ type: 'action', name: 'spell' });
+  return items;
+}
+
+function getRows() {
+  const rows = [];
+  for (let i = 0; i <= 4; i++) {
+    rows.push({
+      key: `view-${i}`,
+      idx: i,
+      contentId: `grid-r${i}`,
+      isHeader: S.activeView !== 'spell' && i === 0,
+      items: S.activeView === 'spell' ? gridRowItems(i) : boardRowItems(i),
+    });
+  }
+  if (S.activeView === 'spell') {
+    rows.push({ key: 'pred', contentId: 'pred-row', items: predRowItems() });
+  }
+  rows.push({ key: 'msg', items: [
+    { type: 'msg-backspace' },
+    { type: 'msg-speak' },
+    { type: 'msg-clear' },
+  ] });
+  rows.push({ key: 'actions', items: actionsRowItems() });
+  return rows;
+}
+
+function scannableItems(row) {
+  return row.items || [];
+}
+
+// Rows with nothing selectable drop out of the sweep entirely — this is what
+// makes every show*/needs combination "just work" without special-casing. In
+// 'actions' scope only the actions row is ever swept.
+function scanRows() {
+  const rows = getRows();
+  if (S.scanScope === 'actions') {
+    return rows.filter(r => r.key === 'actions' && scannableItems(r).length > 0);
+  }
+  return rows.filter(r => scannableItems(r).length > 0);
+}
+
+// ── Selection dispatch ──────────────────────────────────────────────────
+// Single dispatcher for both scan-selection and direct taps.
+function selectItem(item) {
+  if (!item) return;
+  switch (item.type) {
+    case 'key':
+      appendChar(item.char);
+      break;
+    case 'pred':
+      if (item.text.includes(' ')) appendPhrase(item.text);
+      else appendWord(item.text);
+      break;
+    case 'tile':
+      onBoardTileSelect(item);
+      break;
+    case 'tile-more':
+      if (S.activeView === 'phrases') S.phrasesPage += 1;
+      else S.needsPage += 1;
+      render();
+      break;
+    case 'msg-backspace':
+      undoInsertion();
+      break;
+    case 'msg-speak':
+      speak(S.message);
+      break;
+    case 'msg-clear':
+      clearAll();
+      break;
+    case 'action':
+      runAction(item.name);
+      break;
+  }
+}
+
+function runAction(name) {
+  switch (name) {
+    case 'yes': speak('Yes'); break;
+    case 'no':  speak('No');  break;
+    case 'needs':
+      if (S.activeView !== 'needs') {
+        openView('needs');
+      } else if ((S.needsPath || []).length > 0) {
+        S.needsPath = S.needsPath.slice(0, -1);
+        S.needsPage = 0;
+        S.scanPhase = 'row';
+        S.scanRowIdx = 0;
+        S.scanItemIdx = 0;
+        resumeScan();
+      } else {
+        closeToActions();
+      }
+      break;
+    case 'phrases':
+      if (S.activeView !== 'phrases') openView('phrases');
+      else closeToActions();
+      break;
+    case 'spell':
+      openView('spell');
+      break;
+    // 'settings' navigates via its own <a href>; 'select' is handled by its
+    // own click handler (onSelectPress), not through here.
+  }
+}
+
+// ── Views ────────────────────────────────────────────────────────────────
+// Switching views expands the scan into it; closing one collapses the scan
+// back to the actions-only scope with the Spell grid showing underneath.
+
+function openView(view) {
+  S.activeView = view;
+  S.needsPath = [];
+  S.needsPage = 0;
+  S.phrasesPage = 0;
+  S.scanScope = 'view';
+  S.scanResting = false;
+  S.scanLoops = 0;
+  S.scanPhase = 'row';
+  S.scanRowIdx = 0;
+  S.scanItemIdx = 0;
+  resumeScan();
+}
+
+function closeToActions() {
+  S.activeView = 'spell';
+  S.needsPath = [];
+  S.needsPage = 0;
+  S.phrasesPage = 0;
+  S.scanScope = 'actions';
+  S.scanResting = false;
+  S.scanLoops = 0;
+  S.scanPhase = 'item';
+  S.scanItemIdx = 0;
+  resumeScan();
+}
+
 // ── Scanning ─────────────────────────────────────────────────────────────
+const ITEM_SPEED_RATIO = 0.69;
+// Scanning never turns off — after this many idle loops with no input it
+// parks ("rests") instead. The switch (Select button / Space / Enter) wakes
+// it. A "loop" is the cursor wrapping back to the top of its scope: a
+// row-index wrap in 'view' scope, an item-index wrap in 'actions' scope.
+const REST_AFTER_LOOPS = 2;
+
+// (Re)starts the sweep from the top of the current scope. Used at init and
+// to wake the sweep from rest.
 function startScan() {
-  stopScan();
-  S.scanPhase = 'zone';
-  S.scanZone  = 0;
-  S.scanItem  = 0;
-  advanceZone();
-  renderGrid();
+  S.scanResting = false;
+  S.scanLoops = 0;
+  if (S.scanScope === 'actions') {
+    S.scanPhase = 'item';
+    S.scanItemIdx = 0;
+  } else {
+    S.scanPhase = 'row';
+    S.scanRowIdx = 0;
+    S.scanItemIdx = 0;
+  }
+  resumeScan();
 }
 
-function stopScan() {
-  if (S.scanTimer) clearTimeout(S.scanTimer);
-  S.scanTimer = null;
-  S.scanPhase = 'zone';
-  S.scanZone  = -1;
-  S.scanItem  = -1;
+function enterRest() {
+  if (S.scanTimer) { clearTimeout(S.scanTimer); S.scanTimer = null; }
+  S.scanResting = true;
+  render();
 }
 
-function advanceZone() {
-  renderGrid();
-  renderPredRow();
+// Continues ticking from the current cursor (clamped) given S's current
+// scope/phase. Always clears any pending timer first, so it's safe to call
+// after any state mutation without worrying about stray duplicate timers.
+function resumeScan() {
+  if (S.scanTimer) { clearTimeout(S.scanTimer); S.scanTimer = null; }
+  const rows = scanRows();
+  if (!rows.length) { enterRest(); return; }
+  if (S.scanScope === 'actions') {
+    S.scanPhase = 'item';
+    S.scanItemIdx = Math.min(S.scanItemIdx, rows[0].items.length - 1);
+    advanceItem();
+    return;
+  }
+  S.scanRowIdx = Math.min(S.scanRowIdx, rows.length - 1);
+  if (S.scanPhase === 'item') {
+    const items = scannableItems(rows[S.scanRowIdx]);
+    S.scanItemIdx = Math.min(S.scanItemIdx, items.length - 1);
+    advanceItem();
+  } else {
+    advanceRow();
+  }
+}
+
+function advanceRow() {
+  render();
   S.scanTimer = setTimeout(() => {
-    const zones = scanZones();
-    S.scanZone = (S.scanZone + 1) % zones.length;
-    advanceZone();
+    const rows = scanRows();
+    if (!rows.length) { enterRest(); return; }
+    const next = S.scanRowIdx + 1;
+    if (next >= rows.length) {
+      S.scanRowIdx = 0;
+      S.scanLoops += 1;
+      if (S.scanLoops >= REST_AFTER_LOOPS) { enterRest(); return; }
+    } else {
+      S.scanRowIdx = next;
+    }
+    advanceRow();
   }, S.scanSpeedMs);
 }
 
-function advanceItem(items) {
-  renderGrid();
-  renderPredRow();
-  const itemMs = Math.round(S.scanSpeedMs * 0.69);
+function advanceItem() {
+  render();
+  const itemMs = Math.round(S.scanSpeedMs * ITEM_SPEED_RATIO);
   S.scanTimer = setTimeout(() => {
-    S.scanItem = (S.scanItem + 1) % items.length;
-    if (S.scanItem === 0) {
-      S.scanPhase = 'zone';
-      advanceZone();
+    const rows = scanRows();
+    if (!rows.length) { enterRest(); return; }
+
+    if (S.scanScope === 'actions') {
+      const items = scannableItems(rows[0]);
+      const next = S.scanItemIdx + 1;
+      if (next >= items.length) {
+        S.scanItemIdx = 0;
+        S.scanLoops += 1;
+        if (S.scanLoops >= REST_AFTER_LOOPS) { enterRest(); return; }
+      } else {
+        S.scanItemIdx = next;
+      }
+      advanceItem();
+      return;
+    }
+
+    const row = rows[Math.min(S.scanRowIdx, rows.length - 1)];
+    const items = scannableItems(row);
+    S.scanItemIdx += 1;
+    if (S.scanItemIdx >= items.length) {
+      S.scanItemIdx = 0;
+      S.scanPhase = 'row';
+      advanceRow();
     } else {
-      advanceItem(items);
+      advanceItem();
     }
   }, itemMs);
 }
 
-function onSwitch() {
-  if (S.inputMode !== 'scan') return;
-  if (S.scanTimer) clearTimeout(S.scanTimer);
+// The scan actuator — fired by the Select button, physical Space, or Enter.
+// While resting, any press just wakes the sweep (it never also selects).
+function onSelectPress() {
+  if (S.scanResting) { startScan(); return; }
+  if (S.scanTimer) { clearTimeout(S.scanTimer); S.scanTimer = null; }
+  S.scanLoops = 0;
 
-  const zones = scanZones();
-  const zone  = zones[S.scanZone];
+  const rows = scanRows();
+  if (!rows.length) { enterRest(); return; }
 
-  if (S.scanPhase === 'zone') {
-    S.scanPhase = 'item';
-    S.scanItem  = 0;
-    if (zone.type === 'pred') {
-      const predCount = S.predictions.length;
-      if (predCount === 0) { S.scanPhase = 'zone'; advanceZone(); return; }
-      advanceItem(Array(Math.min(predCount, 5)).fill(0));
-    } else {
-      const rows = getGridRows();
-      advanceItem(rows[zone.rowIdx]);
+  if (S.scanScope === 'view' && S.scanPhase === 'row') {
+    S.scanRowIdx = Math.min(S.scanRowIdx, rows.length - 1);
+    S.scanItemIdx = 0;
+    // Descend into the row so its items can be scanned one at a time — but a
+    // single-item row (e.g. the lone "Other / Spell it out" tile) has nothing
+    // to choose between, so select it on this same press instead of making
+    // the user press once to descend and again to pick.
+    if (scannableItems(rows[S.scanRowIdx]).length > 1) {
+      S.scanPhase = 'item';
+      advanceItem();
+      return;
     }
-  } else {
-    if (zone.type === 'pred') {
-      const pred = S.predictions[S.scanItem];
-      if (pred) {
-        if (pred.includes(' ')) appendPhrase(pred);
-        else appendWord(pred);
-      }
-    } else {
-      const rows = getGridRows();
-      const key  = rows[zone.rowIdx][S.scanItem];
-      if (key) appendChar(key.char);
-    }
-    S.scanPhase = 'zone';
-    advanceZone();
   }
+
+  const rowIdx = S.scanScope === 'actions' ? 0 : Math.min(S.scanRowIdx, rows.length - 1);
+  const row = rows[rowIdx];
+  const items = scannableItems(row);
+  const item = items[Math.min(S.scanItemIdx, items.length - 1)];
+
+  const scopeBefore = S.scanScope;
+  selectItem(item);
+
+  if (S.scanScope === scopeBefore) {
+    // Selection didn't change the active view/scope (a letter, a
+    // prediction, Yes/No, a needs-category drill, Backspace/Speak/Clear,
+    // or a More tile) — openView()/closeToActions() already reset phase and
+    // indices for the cases that do change scope, so this only needs to
+    // return a 'view' sweep to row phase, or step the 'actions' sweep on.
+    if (S.scanScope === 'view') {
+      S.scanPhase = 'row';
+    } else {
+      const stillItems = scannableItems(scanRows()[0] || { items: [] });
+      S.scanItemIdx = stillItems.length ? (S.scanItemIdx + 1) % stillItems.length : 0;
+    }
+  }
+
+  resumeScan();
 }
 
-// ── Dwell ────────────────────────────────────────────────────────────────
-function startDwell(keyEl, char) {
-  stopDwell();
-  S.dwellEl    = keyEl;
-  S.dwellStart = performance.now();
-  keyEl.classList.add('dwelling');
-
-  function tick(ts) {
-    if (S.dwellEl !== keyEl) return;
-    const prog = Math.min((ts - S.dwellStart) / S.dwellMs, 1);
-    keyEl.style.setProperty('--dp', prog);
-    if (prog < 1) {
-      S.dwellRAF = requestAnimationFrame(tick);
-    } else {
-      stopDwell();
-      appendChar(char);
-    }
-  }
-  S.dwellRAF = requestAnimationFrame(tick);
-}
-
-function stopDwell() {
-  if (S.dwellRAF) cancelAnimationFrame(S.dwellRAF);
-  S.dwellRAF = null;
-  if (S.dwellEl) {
-    S.dwellEl.classList.remove('dwelling');
-    S.dwellEl.style.removeProperty('--dp');
-    S.dwellEl = null;
-  }
+function isActiveScanItem(rowKey, itemIdx) {
+  if (S.scanResting || S.scanPhase !== 'item') return false;
+  const rows = scanRows();
+  const rowIdx = S.scanScope === 'actions' ? 0 : S.scanRowIdx;
+  const row = rows[rowIdx];
+  return !!row && row.key === rowKey && S.scanItemIdx === itemIdx;
 }
 
 // ── Rendering ────────────────────────────────────────────────────────────
@@ -486,27 +840,113 @@ function render() {
   const app = el('app');
   app.dataset.theme   = S.theme;
   app.dataset.density = S.density;
+  app.dataset.view    = S.activeView;
   document.body.dataset.theme = S.theme;
 
-  // Section visibility
-  el('pred-row').classList.toggle('section-hidden', !S.showPredictionRow);
-  el('yes-btn').classList.toggle('section-hidden', !S.showYesNo);
-  el('no-btn').classList.toggle('section-hidden', !S.showYesNo);
-  el('needs-btn').classList.toggle('section-hidden', !S.showNeedsMenu);
+  const rows = getRows();
+  const predRow = rows.find(r => r.key === 'pred');
+  const actionsRow = rows.find(r => r.key === 'actions');
 
+  renderViewRows(rows);
+  renderPredRow(predRow);
   renderMsgBar();
-  renderPredRow();
-  renderGridArea();
-  renderRail();
-  el('switch-btn').classList.toggle('visible', S.inputMode === 'scan');
+  renderMsgRowChrome();
+  renderActions(actionsRow);
+  renderScanHighlights();
 }
 
-// Message bar
+function buildKeyEl(item, isActive) {
+  const keyEl = document.createElement('div');
+  const label = item.label || item.char;
+  let cls = 'key';
+  if (item.kind === 'space') cls += ' key-space';
+  if (item.kind === 'punct') cls += ' key-punct';
+  if (isActive) cls += ' scan-item';
+  keyEl.className = cls;
+  keyEl.innerHTML = `<span class="key-label">${h(label)}</span>`;
+
+  keyEl.addEventListener('pointerdown', e => { e.preventDefault(); keyEl.classList.add('pressed'); });
+  keyEl.addEventListener('pointerup', e => {
+    e.preventDefault();
+    keyEl.classList.remove('pressed');
+    selectItem(item);
+  });
+  keyEl.addEventListener('pointerleave', () => keyEl.classList.remove('pressed'));
+  keyEl.addEventListener('pointercancel', () => keyEl.classList.remove('pressed'));
+  return keyEl;
+}
+
+function buildTileEl(item, isActive) {
+  const tileEl = document.createElement('div');
+  let cls = 'needs-tile';
+  if (item.isOther) cls += ' is-other';
+  if (isActive) cls += ' scan-item';
+  tileEl.className = cls;
+  tileEl.innerHTML = item.isOther
+    ? `<span class="tile-label">Other</span><span class="tile-sub">Spell it out</span>`
+    : `<span class="tile-label">${h(item.label)}</span>`;
+  tileEl.addEventListener('pointerup', e => { e.preventDefault(); selectItem(item); });
+  return tileEl;
+}
+
+function buildMoreEl(isActive) {
+  const moreEl = document.createElement('div');
+  moreEl.className = 'needs-tile is-more' + (isActive ? ' scan-item' : '');
+  moreEl.innerHTML = `<span class="tile-label">More</span><span class="tile-sub">›</span>`;
+  moreEl.addEventListener('pointerup', e => { e.preventDefault(); selectItem({ type: 'tile-more' }); });
+  return moreEl;
+}
+
+function renderViewRows(rows) {
+  for (let i = 0; i <= 4; i++) {
+    const row = rows[i];
+    const container = el(row.contentId);
+    container.innerHTML = '';
+
+    if (row.isHeader) {
+      const hdr = document.createElement('div');
+      hdr.className = 'needs-header';
+      hdr.textContent = boardHeaderText();
+      container.appendChild(hdr);
+      continue;
+    }
+
+    row.items.forEach((item, k) => {
+      const isActive = isActiveScanItem(row.key, k);
+      if (item.type === 'key') container.appendChild(buildKeyEl(item, isActive));
+      else if (item.type === 'tile') container.appendChild(buildTileEl(item, isActive));
+      else if (item.type === 'tile-more') container.appendChild(buildMoreEl(isActive));
+    });
+  }
+}
+
+function renderPredRow(row) {
+  const container = el('pred-row');
+  container.innerHTML = '';
+  if (!row) return;
+  for (let i = 0; i < 5; i++) {
+    const item = row.items[i];
+    const isActive = isActiveScanItem('pred', i);
+    const slot = document.createElement('div');
+    const filled = !!item;
+    let cls = `pred-slot ${filled ? 'filled' : 'empty'}`;
+    if (isActive) cls += ' scan-item';
+    slot.className = cls;
+
+    if (filled) {
+      const isPhrase = item.text.includes(' ');
+      slot.innerHTML = `<span class="pred-text${isPhrase ? ' phrase' : ''}">${h(item.text)}</span>`;
+      slot.addEventListener('pointerup', e => { e.preventDefault(); selectItem(item); });
+    }
+    container.appendChild(slot);
+  }
+}
+
 function renderMsgBar() {
   const bar     = el('msg-bar');
   const msg     = S.message;
   const hasText = msg.length > 0;
-  const overflow = msg.length > 38;
+  const overflow = msg.length > 55;
 
   const textHTML = hasText
     ? `<span class="msg-text">${h(msg)}</span><span class="msg-caret"></span>`
@@ -520,262 +960,72 @@ function renderMsgBar() {
         <div class="msg-row">${textHTML}</div>
       </div>
     </div>
-    <div class="msg-controls">
-      <button class="ctrl-btn" id="btn-clear-letter" ${hasText ? '' : 'disabled'}>
-        <span class="ctrl-glyph">⌫</span>
-        <span class="ctrl-label">Letter</span>
-      </button>
-      <button class="ctrl-btn" id="btn-clear-all" ${hasText ? '' : 'disabled'}>
-        <span class="ctrl-glyph">✕</span>
-        <span class="ctrl-label">Clear</span>
-      </button>
-      <button class="speak-btn" id="btn-speak" ${hasText ? '' : 'disabled'}>
-        <span class="speak-glyph">▶</span>Speak
-      </button>
-    </div>`;
+    <button class="speak-btn" id="btn-speak">
+      <span class="speak-glyph">▶</span>Speak
+    </button>`;
 
-  if (hasText) {
-    el('btn-clear-letter').onclick = clearLast;
-    el('btn-clear-all').onclick    = clearAll;
-    el('btn-speak').onclick        = () => speak(S.message);
-  }
+  el('btn-speak').onclick = () => speak(S.message);
 }
 
-// Prediction row
-function renderPredRow() {
-  const row = el('pred-row');
-  const isZone = S.inputMode === 'scan' && S.scanPhase === 'zone' && S.scanZone === 0;
-  row.classList.toggle('scan-zone-active', isZone);
-
-  row.innerHTML = '';
-  for (let i = 0; i < 5; i++) {
-    const text   = S.predictions[i] || '';
-    const filled = !!text;
-    const slot   = document.createElement('div');
-    const isPhrase = text.includes(' ');
-    const isScanItem = S.inputMode === 'scan' && S.scanPhase === 'item' &&
-                       scanZones()[S.scanZone]?.type === 'pred' && S.scanItem === i;
-
-    slot.className = `pred-slot ${filled ? 'filled' : 'empty'}`;
-    if (isScanItem) slot.style.outline = `3px solid var(--scan)`;
-
-    if (filled) {
-      slot.innerHTML = `<span class="pred-text${isPhrase ? ' phrase' : ''}">${h(text)}</span>`;
-      slot.addEventListener('pointerdown', e => {
-        e.preventDefault();
-        if (isPhrase) appendPhrase(text);
-        else appendWord(text);
-      });
-    }
-    row.appendChild(slot);
-  }
+// The message row descends into three items when swept: Backspace, the
+// message itself (select = speak), then Clear.
+function renderMsgRowChrome() {
+  el('btn-backspace').classList.toggle('scan-item', isActiveScanItem('msg', 0));
+  el('msg-bar').classList.toggle('scan-item', isActiveScanItem('msg', 1));
+  el('btn-clear').classList.toggle('scan-item', isActiveScanItem('msg', 2));
 }
 
-// Grid area: spelling grid or needs panel
-function renderGridArea() {
-  const sgrid  = el('spelling-grid');
-  const npanel = el('needs-panel');
-  const showGrid = S.showSpellingGrid;
+const ACTION_BUTTON_IDS = {
+  yes: 'btn-yes', no: 'btn-no', needs: 'btn-needs', phrases: 'btn-phrases', spell: 'btn-spell',
+};
 
-  if (!S.needsOpen) {
-    sgrid.classList.toggle('hidden', !showGrid);
-    npanel.classList.add('hidden');
-    if (showGrid) renderGrid();
-  } else {
-    sgrid.classList.add('hidden');
-    npanel.classList.remove('hidden');
-    renderNeeds();
-  }
-}
+function renderActions(row) {
+  el('btn-yes').classList.toggle('spacer', !S.showYesNo);
+  el('btn-no').classList.toggle('spacer', !S.showYesNo);
+  el('btn-needs').classList.toggle('spacer', !S.showNeedsMenu);
+  el('btn-phrases').classList.toggle('spacer', !S.showQuickPhrases);
+  el('btn-spell').classList.toggle('spacer', !S.showSpellingGrid);
 
-// Spelling grid
-function renderGrid() {
-  const grid  = el('spelling-grid');
-  const rows  = getGridRows();
-  const zones = scanZones();
+  const needsBtn = el('btn-needs');
+  const needsOpen = S.activeView === 'needs';
+  const drilled = (S.needsPath || []).length > 0;
+  needsBtn.querySelector('.act-label').textContent = !needsOpen ? 'Needs' : (drilled ? 'Back' : 'Close');
+  needsBtn.querySelector('.act-glyph').textContent = !needsOpen ? '▶' : (drilled ? '‹' : '✕');
 
-  grid.innerHTML = '';
+  const phrasesBtn = el('btn-phrases');
+  const phrasesOpen = S.activeView === 'phrases';
+  phrasesBtn.querySelector('.act-label').textContent = phrasesOpen ? 'Close' : 'Phrases';
+  phrasesBtn.querySelector('.act-glyph').textContent = phrasesOpen ? '✕' : '❝';
 
-  rows.forEach((keys, ri) => {
-    const isZoneHighlight = S.inputMode === 'scan' && S.scanPhase === 'zone' &&
-                            S.scanZone === ri + 1;
-    const isItemRow = S.inputMode === 'scan' && S.scanPhase === 'item' &&
-                      S.scanZone === ri + 1;
+  const selectBtn = el('btn-select');
+  const active = !S.scanResting;
+  selectBtn.classList.toggle('live', active);
+  selectBtn.querySelector('.act-glyph').textContent = active ? '●' : '▶';
+  selectBtn.querySelector('.act-label').textContent = active ? 'Select' : 'Scan';
 
-    const rowEl = document.createElement('div');
-    rowEl.className = 'key-row';
-
-    if (isZoneHighlight || isItemRow) {
-      const band = document.createElement('div');
-      band.className = 'scan-band';
-      rowEl.appendChild(band);
-    }
-
-    keys.forEach((k, ki) => {
-      const keyEl = document.createElement('div');
-      const label  = k.label || k.char;
-      let cls = 'key';
-      if (k.kind === 'space')  cls += ' key-space';
-      if (k.kind === 'punct')  cls += ' key-punct';
-
-      const isScanItem = S.inputMode === 'scan' && S.scanPhase === 'item' &&
-                         S.scanZone === ri + 1 && S.scanItem === ki;
-      if (isScanItem) cls += ' scan-item';
-
-      keyEl.className = cls;
-      keyEl.innerHTML = `<span class="key-label">${h(label)}</span>`;
-
-      if (S.inputMode === 'direct') {
-        keyEl.addEventListener('pointerdown', e => {
-          e.preventDefault();
-          keyEl.classList.add('pressed');
-        });
-        keyEl.addEventListener('pointerup', e => {
-          e.preventDefault();
-          keyEl.classList.remove('pressed');
-          appendChar(k.char);
-        });
-        keyEl.addEventListener('pointerleave', () => keyEl.classList.remove('pressed'));
-        keyEl.addEventListener('pointercancel', () => keyEl.classList.remove('pressed'));
-      } else if (S.inputMode === 'dwell') {
-        keyEl.addEventListener('pointerenter', () => startDwell(keyEl, k.char));
-        keyEl.addEventListener('pointerleave', stopDwell);
-        keyEl.addEventListener('pointercancel', stopDwell);
-      }
-
-      rowEl.appendChild(keyEl);
-    });
-
-    grid.appendChild(rowEl);
+  const items = row ? row.items : [];
+  items.forEach((item, k) => {
+    if (item.type !== 'action') return;
+    const btn = el(ACTION_BUTTON_IDS[item.name]);
+    if (!btn) return;
+    btn.classList.toggle('scan-item', isActiveScanItem('actions', k));
   });
 }
 
-// Needs panel — renders the admin-defined needs tree at any depth.
-// A node with non-"Other" children is a category (drills deeper); a node with
-// none is a leaf (speaks the full path and closes). "Other" at any level spells out.
-
-// Resolve the list of nodes at the current S.needsPath, plus the parent's label.
-function needsLevel() {
-  let list = S.needsTree || [];
-  let parentLabel = null;
-  for (const id of (S.needsPath || [])) {
-    const node = (list || []).find(n => n.id === id);
-    if (node && Array.isArray(node.children)) { list = node.children; parentLabel = node.label; }
-    else { list = []; break; }
-  }
-  return { list, parentLabel };
+function rowElementId(row) {
+  if (row.key === 'pred') return 'row-pred';
+  if (row.key === 'msg') return 'row-msg';
+  if (row.key === 'actions') return 'row-actions';
+  return `row-${row.idx}`;
 }
 
-// Walk the tree along a list of ids, collecting each node's label.
-function needsLabelsForPath(ids) {
-  const labels = [];
-  let list = S.needsTree || [];
-  for (const id of ids) {
-    const node = (list || []).find(n => n.id === id);
-    if (!node) break;
-    labels.push(node.label);
-    list = node.children || [];
-  }
-  return labels;
-}
-
-function renderNeeds() {
-  const panel = el('needs-panel');
-  const { list, parentLabel } = needsLevel();
-  const atRoot = (S.needsPath || []).length === 0;
-  const title  = atRoot ? (S.needsRootQuestion || 'What do you need?') : (parentLabel || '');
-
-  const tiles = (list || []).filter(n => !n.isOther);
-  const tilesHTML = tiles.map(n => {
-    const isLeaf = !(Array.isArray(n.children) && n.children.some(c => !c.isOther));
-    return `
-    <div class="needs-tile" data-id="${h(n.id)}" data-leaf="${isLeaf ? '1' : '0'}">
-      <span class="tile-label">${h(n.label)}</span>
-    </div>`;
-  }).join('');
-
-  panel.innerHTML = `
-    <div class="needs-hdr">
-      ${!atRoot ? `<button class="needs-back" id="needs-back"><span class="needs-back-gl">‹</span>Back</button>` : ''}
-      <span class="needs-title">${h(title)}</span>
-    </div>
-    <div class="needs-tiles">${tilesHTML}</div>
-    <div class="needs-other" id="needs-other">
-      <span class="needs-other-label">Other</span>
-      <span class="needs-other-hint">Spell it out</span>
-    </div>`;
-
-  if (!atRoot) {
-    panel.querySelector('#needs-back').onclick = () => {
-      S.needsPath = S.needsPath.slice(0, -1);
-      render();
-    };
-  }
-  panel.querySelectorAll('.needs-tile').forEach(t => {
-    t.onclick = () => {
-      const id = t.dataset.id;
-      if (t.dataset.leaf === '0') {
-        S.needsPath = [...S.needsPath, id];
-        render();
-      } else {
-        speak(needsLabelsForPath([...S.needsPath, id]).join(' — '));
-        S.needsOpen = false;
-        S.needsPath = [];
-        render();
-      }
-    };
-  });
-  panel.querySelector('#needs-other').onclick = () => {
-    S.needsOpen = false;
-    S.needsPath = [];
-    render();
-  };
-}
-
-// Rail (quick phrases, mode/settings controls)
-function renderRail() {
-  const qg = el('quick-group');
-  const phrasesToShow = S.showQuickPhrases ? S.quickPhrases : [];
-
-  qg.innerHTML = `
-    ${S.showQuickPhrases ? `<span class="quick-label">QUICK PHRASES</span>` : ''}
-    ${phrasesToShow.map((p, i) =>
-      `<button class="quick-btn" data-i="${i}">${h(p)}</button>`
-    ).join('')}
-    <div class="rail-controls">
-      <div class="mode-row">
-        <button class="mode-btn${S.inputMode === 'direct' ? ' active' : ''}" data-mode="direct">Direct</button>
-        <button class="mode-btn${S.inputMode === 'scan'   ? ' active' : ''}" data-mode="scan">Scan</button>
-        <button class="mode-btn${S.inputMode === 'dwell'  ? ' active' : ''}" data-mode="dwell">Dwell</button>
-      </div>
-      <div class="settings-row">
-        <a class="set-btn" href="./admin/" title="Caregiver settings">⚙ Settings</a>
-      </div>
-    </div>`;
-
-  qg.querySelectorAll('.quick-btn').forEach(btn => {
-    btn.onclick = () => {
-      const phrase = S.quickPhrases[+btn.dataset.i];
-      S.message = phrase;
-      speak(phrase);
-      S.restoredDraft = false;
-      afterMessageChange();
-    };
-  });
-
-  qg.querySelectorAll('.mode-btn').forEach(btn => {
-    btn.onclick = () => {
-      const mode = btn.dataset.mode;
-      if (mode === S.inputMode) return;
-      stopDwell();
-      S.inputMode = mode;
-      saveSettingToAdminState({ inputMode: mode });
-      if (mode === 'scan') startScan();
-      else stopScan();
-      render();
-    };
-  });
-
+function renderScanHighlights() {
+  document.querySelectorAll('.scan-row-active').forEach(rowEl => rowEl.classList.remove('scan-row-active'));
+  if (S.scanResting || S.scanPhase !== 'row' || S.scanScope !== 'view') return;
+  const rows = scanRows();
+  const active = rows[S.scanRowIdx];
+  if (!active) return;
+  el(rowElementId(active)).classList.add('scan-row-active');
 }
 
 // ── Viewport scaling ──────────────────────────────────────────────────────
@@ -814,41 +1064,35 @@ function init() {
 
   if (S.restoredDraft) {
     setTimeout(() => {
-      if (S.restoredDraft) { S.restoredDraft = false; renderMsgBar(); }
+      if (S.restoredDraft) { S.restoredDraft = false; renderMsgBar(); renderMsgRowChrome(); }
     }, 3000);
   }
 
-  // Static rail buttons
-  el('yes-btn').onclick  = () => speak('Yes');
-  el('no-btn').onclick   = () => speak('No');
-  el('needs-btn').onclick = () => {
-    S.needsOpen = !S.needsOpen;
-    S.needsPath = [];
-    render();
-  };
-  el('switch-btn').onclick = onSwitch;
+  // Static action buttons
+  el('btn-backspace').onclick = () => undoInsertion();
+  el('btn-clear').onclick     = () => clearAll();
+  el('btn-yes').onclick       = () => runAction('yes');
+  el('btn-no').onclick        = () => runAction('no');
+  el('btn-needs').onclick     = () => runAction('needs');
+  el('btn-phrases').onclick   = () => runAction('phrases');
+  el('btn-spell').onclick     = () => runAction('spell');
+  el('btn-select').onclick    = () => onSelectPress();
+  // btn-settings is a plain <a href="./admin/"> — no handler needed.
 
-  // Physical keyboard
+  // Physical keyboard. Space/Enter are the switch actuator (scanning is
+  // always on), so a physical space bar no longer inserts a literal space —
+  // the on-screen space key is unaffected.
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.key === ' ' && S.inputMode === 'scan') {
-      e.preventDefault(); onSwitch(); return;
-    }
-    if (e.key === 'Backspace')      { e.preventDefault(); clearLast(); return; }
-    if (e.key === 'Escape')         { e.preventDefault(); clearAll();  return; }
-    if (e.key === 'Enter')          { e.preventDefault(); speak(S.message); return; }
-    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && S.inputMode === 'direct') {
-      appendChar(e.key);
-    }
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onSelectPress(); return; }
+    if (e.key === 'Escape')    { e.preventDefault(); clearAll();  return; }
+    if (e.key === 'Backspace') { e.preventDefault(); clearLast(); return; }
+    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) appendChar(e.key);
   });
 
-  // Re-apply admin settings, handling a scan-mode start/stop transition.
   function refreshFromAdminState() {
     _ttsVoiceCache = null; // invalidate voice cache
-    const wasScanning = S.inputMode === 'scan';
     applyAdminSettings();
-    if (wasScanning && S.inputMode !== 'scan') stopScan();
-    else if (!wasScanning && S.inputMode === 'scan') startScan();
     render();
   }
 
@@ -862,6 +1106,8 @@ function init() {
   window.addEventListener('pageshow', e => {
     if (e.persisted) refreshFromAdminState();
   });
+
+  startScan();
 }
 
 // Block iOS double-tap-to-zoom

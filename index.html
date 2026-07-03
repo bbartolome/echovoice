@@ -14,46 +14,94 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="app.css?v=17">
+  <link rel="stylesheet" href="app.css?v=18">
 </head>
 <body>
   <div id="scaler">
     <div id="app" data-theme="light" data-density="default">
 
-      <!-- Left column: message, predictions, grid / needs panel -->
-      <div id="left">
-        <div id="msg-bar"></div>
-        <div id="pred-row"></div>
-        <div id="grid-area">
-          <div id="spelling-grid"></div>
-          <div id="needs-panel"></div>
-        </div>
+      <!-- Rows 1-5: the view area. Content depends on the active view — the
+           spelling grid (Spell), or a header + tile board (Needs / Phrases).
+           No trailing action buttons here; every action lives on the bottom
+           actions row. -->
+      <div class="comm-row" id="row-0">
+        <div class="row-content" id="grid-r0"></div>
+      </div>
+      <div class="comm-row" id="row-1">
+        <div class="row-content" id="grid-r1"></div>
+      </div>
+      <div class="comm-row" id="row-2">
+        <div class="row-content" id="grid-r2"></div>
+      </div>
+      <div class="comm-row" id="row-3">
+        <div class="row-content" id="grid-r3"></div>
+      </div>
+      <div class="comm-row" id="row-4">
+        <div class="row-content" id="grid-r4"></div>
       </div>
 
-      <!-- Right rail: Yes · No · quick phrases · needs entry -->
-      <div id="rail">
-        <button id="yes-btn" class="yn yes">
-          <span class="yn-glyph">✓</span>
-          <span>Yes</span>
+      <!-- Predictions row — part of the Spell view only; hidden while Needs
+           or Phrases is showing (see [data-view] rule in app.css). -->
+      <div class="comm-row" id="row-pred">
+        <div class="row-content" id="pred-row"></div>
+      </div>
+
+      <!-- Message row: Backspace (left) · message + Speak · Clear (right). -->
+      <div class="comm-row" id="row-msg">
+        <button class="msg-side-btn" id="btn-backspace">
+          <span class="act-glyph">⌫</span>
+          <span class="act-label">Backspace</span>
         </button>
-        <button id="no-btn" class="yn no">
-          <span class="yn-glyph">✗</span>
-          <span>No</span>
-        </button>
-        <div id="quick-group"></div>
-        <button id="needs-btn">
-          <span class="needs-btn-label">What do you need?</span>
-          <span class="needs-btn-glyph">▶</span>
+        <div class="row-content" id="msg-bar"></div>
+        <button class="msg-side-btn" id="btn-clear">
+          <span class="act-glyph">✕</span>
+          <span class="act-label">Clear</span>
         </button>
       </div>
 
-      <!-- Scan switch — visible only in scan mode -->
-      <button id="switch-btn">SWITCH</button>
+      <!-- Actions row: every action lives here. Settings is direct-tap only
+           (a caregiver control) and Select is the scan actuator itself —
+           neither is ever a scan target. -->
+      <div class="comm-row" id="row-actions">
+        <a class="action-btn act-settings" id="btn-settings" href="./admin/" title="Caregiver settings">
+          <span class="act-glyph">⚙</span>
+          <span class="act-label">Settings</span>
+        </a>
+        <button class="action-btn act-yes" id="btn-yes">
+          <span class="act-glyph">✓</span>
+          <span class="act-label">Yes</span>
+        </button>
+        <button class="action-btn act-no" id="btn-no">
+          <span class="act-glyph">✗</span>
+          <span class="act-label">No</span>
+        </button>
+        <button class="action-btn act-needs" id="btn-needs">
+          <span class="act-glyph">▶</span>
+          <span class="act-label">Needs</span>
+        </button>
+        <button class="action-btn act-phrases" id="btn-phrases">
+          <span class="act-glyph">❝</span>
+          <span class="act-label">Phrases</span>
+        </button>
+        <button class="action-btn act-spell" id="btn-spell">
+          <span class="act-glyph">Aa</span>
+          <span class="act-label">Spell</span>
+        </button>
+        <button class="action-btn act-select" id="btn-select">
+          <span class="act-glyph">●</span>
+          <span class="act-label">Select</span>
+        </button>
+      </div>
+
+      <!-- Row 8: footer — not part of the scan sweep -->
+      <div id="footer">
+        <span id="footer-copy">EchoVoice · © 2026</span>
+      </div>
 
     </div>
   </div>
-  <script src="predictionary.min.js?v=17"></script>
-  <script src="prediction.js?v=17"></script>
-  <script src="app.js?v=17"></script>
+  <script src="predictionary.min.js?v=18"></script>
+  <script src="prediction.js?v=18"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>
